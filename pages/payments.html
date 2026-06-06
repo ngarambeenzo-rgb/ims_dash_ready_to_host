@@ -1,0 +1,36 @@
+<div id="page-payments" class="page" style="display:none">
+  <div class="page-header">
+    <div><div class="page-title">💰 Payments</div><div class="page-sub">Record payments and instantly restore client access</div></div>
+    <button class="btn btn-green" onclick="showRecordPayment()">💰 Record Payment</button>
+  </div>
+
+  <!-- FIX: .kpi.green/.kpi.blue/.kpi.gold — color modifier on parent, not on .kpi-value -->
+  <!-- FIX: .kpi-sub was undefined — added to main.css patch below, used here -->
+  <div class="grid-3 mb-16">
+    <div class="kpi green">
+      <div class="kpi-label">This Month</div>
+      <div class="kpi-value" id="payMonthTotal">RWF 0</div>
+      <div class="kpi-sub" id="payMonthCount">0 payments</div>
+    </div>
+    <div class="kpi blue">
+      <div class="kpi-label">This Year</div>
+      <div class="kpi-value" id="payYearTotal">RWF 0</div>
+      <div class="kpi-sub" id="payYearCount">0 payments</div>
+    </div>
+    <div class="kpi gold">
+      <div class="kpi-label">All Time</div>
+      <div class="kpi-value" id="payAllTotal">RWF 0</div>
+      <div class="kpi-sub" id="payAllCount">0 payments</div>
+    </div>
+  </div>
+
+  <div class="search-bar">
+    <input type="text" class="search-input" placeholder="🔍 Search payments..." oninput="filterPayments(this.value)"/>
+  </div>
+  <div class="card">
+    <div class="table-wrap"><table>
+      <thead><tr><th>Client</th><th>Amount (RWF)</th><th>Plan</th><th>Devices</th><th>Period</th><th>Method</th><th>Recorded By</th><th>Date</th></tr></thead>
+      <tbody id="paymentsTable"><tr><td colspan="8" style="text-align:center;color:var(--muted);padding:32px">No payments yet</td></tr></tbody>
+    </table></div>
+  </div>
+</div>

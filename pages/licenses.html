@@ -1,0 +1,18 @@
+<div id="page-licenses" class="page" style="display:none">
+  <div class="page-header">
+    <div><div class="page-title">🔑 Licenses</div><div class="page-sub">All issued licenses — view and revoke</div></div>
+    <button class="btn btn-primary" onclick="showGenerateLicense()">🔑 Generate License</button>
+  </div>
+  <div class="tabs">
+    <div class="tab active" onclick="switchLicenseTab('active',this)">✅ Active</div>
+    <div class="tab" onclick="switchLicenseTab('expired',this)">⌛ Expired</div>
+    <div class="tab" onclick="switchLicenseTab('revoked',this)">🚫 Revoked</div>
+    <div class="tab" onclick="switchLicenseTab('all',this)">All</div>
+  </div>
+  <div class="card">
+    <div class="table-wrap"><table>
+      <thead><tr><th>Client</th><th>Device ID</th><th>Plan</th><th>Max Devices</th><th>Issued</th><th>Expires</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody id="licensesTable"><tr><td colspan="8" style="text-align:center;color:var(--muted);padding:32px">Loading...</td></tr></tbody>
+    </table></div>
+  </div>
+</div>

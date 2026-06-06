@@ -1,0 +1,154 @@
+<div id="page-reports" class="page">
+
+  <div class="page-header">
+    <div>
+      <div class="page-title">📊 Reports & Analytics</div>
+      <div class="page-sub">Revenue, subscriptions, clients and business insights</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <!-- Date range filter -->
+      <select class="form-input" id="reportPeriod" onchange="loadReports()" style="font-size:12px;padding:7px 12px;width:auto">
+        <option value="this_month">This Month</option>
+        <option value="last_month">Last Month</option>
+        <option value="last_3months">Last 3 Months</option>
+        <option value="last_6months">Last 6 Months</option>
+        <option value="this_year">This Year</option>
+        <option value="all_time">All Time</option>
+      </select>
+      <button class="btn btn-ghost btn-sm" onclick="exportReports()">📥 Export</button>
+      <button class="btn btn-primary btn-sm" onclick="loadReports()">🔄 Refresh</button>
+    </div>
+  </div>
+
+  <!-- KPI CARDS -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">
+    <div class="card" style="padding:16px;border-left:3px solid #00D084">
+      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Total Revenue</div>
+      <div style="font-size:24px;font-weight:800;color:#00D084" id="rptTotalRevenue">—</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px" id="rptRevChange"></div>
+    </div>
+    <div class="card" style="padding:16px;border-left:3px solid #4D9EFF">
+      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Active Subscriptions</div>
+      <div style="font-size:24px;font-weight:800;color:#4D9EFF" id="rptActiveSubs">—</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px" id="rptSubChange"></div>
+    </div>
+    <div class="card" style="padding:16px;border-left:3px solid #A855F7">
+      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">New Clients</div>
+      <div style="font-size:24px;font-weight:800;color:#A855F7" id="rptNewClients">—</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px" id="rptClientChange"></div>
+    </div>
+    <div class="card" style="padding:16px;border-left:3px solid #FF8C42">
+      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Avg Revenue/Client</div>
+      <div style="font-size:24px;font-weight:800;color:#FF8C42" id="rptAvgRevenue">—</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px" id="rptChurnRate"></div>
+    </div>
+  </div>
+
+  <!-- ROW 1: Revenue Chart + Subscription Breakdown -->
+  <div style="display:grid;grid-template-columns:2fr 1fr;gap:14px;margin-bottom:14px">
+
+    <!-- Revenue over time -->
+    <div class="card" style="padding:18px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div class="card-title" style="margin:0"><span>💰</span> Revenue Over Time</div>
+        <div style="display:flex;gap:4px">
+          <button class="chart-toggle-btn active" id="revenueChartBar" onclick="toggleRevenueChart('bar',this)">Bar</button>
+          <button class="chart-toggle-btn" id="revenueChartLine" onclick="toggleRevenueChart('line',this)">Line</button>
+        </div>
+      </div>
+      <canvas id="rptRevenueChart" height="220"></canvas>
+    </div>
+
+    <!-- Subscription plan breakdown -->
+    <div class="card" style="padding:18px">
+      <div class="card-title" style="margin-bottom:16px"><span>📋</span> Plan Breakdown</div>
+      <canvas id="rptPlanChart" height="160"></canvas>
+      <div id="rptPlanLegend" style="margin-top:12px;display:flex;flex-direction:column;gap:6px"></div>
+    </div>
+  </div>
+
+  <!-- ROW 2: Client Status + Payment Methods + Expiring -->
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px">
+
+    <!-- Client status distribution -->
+    <div class="card" style="padding:18px">
+      <div class="card-title" style="margin-bottom:14px"><span>👥</span> Client Status</div>
+      <canvas id="rptStatusChart" height="160"></canvas>
+      <div id="rptStatusBreakdown" style="margin-top:12px;display:flex;flex-direction:column;gap:6px"></div>
+    </div>
+
+    <!-- Payment methods -->
+    <div class="card" style="padding:18px">
+      <div class="card-title" style="margin-bottom:14px"><span>💳</span> Payment Methods</div>
+      <canvas id="rptPaymentMethodChart" height="160"></canvas>
+      <div id="rptPaymentMethodList" style="margin-top:12px;display:flex;flex-direction:column;gap:6px"></div>
+    </div>
+
+    <!-- Expiring soon -->
+    <div class="card" style="padding:18px">
+      <div class="card-title" style="margin-bottom:14px"><span>⏰</span> Expiring Soon</div>
+      <div id="rptExpiringSoon" style="display:flex;flex-direction:column;gap:8px">
+        <div style="text-align:center;padding:20px;color:var(--muted)">Loading...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ROW 3: Top clients + Recent payments table -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+
+    <!-- Top clients by revenue -->
+    <div class="card" style="padding:18px">
+      <div class="card-title" style="margin-bottom:14px"><span>🏆</span> Top Clients by Revenue</div>
+      <div id="rptTopClients" style="display:flex;flex-direction:column;gap:8px">
+        <div style="text-align:center;padding:20px;color:var(--muted)">Loading...</div>
+      </div>
+    </div>
+
+    <!-- Monthly revenue summary -->
+    <div class="card" style="padding:18px">
+      <div class="card-title" style="margin-bottom:14px"><span>📅</span> Monthly Revenue Summary</div>
+      <div id="rptMonthlySummary" style="display:flex;flex-direction:column;gap:6px">
+        <div style="text-align:center;padding:20px;color:var(--muted)">Loading...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ROW 4: Full payments table -->
+  <div class="card" style="padding:18px;margin-bottom:14px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <div class="card-title" style="margin:0"><span>📄</span> Payment History</div>
+      <input type="text" class="search-input" placeholder="🔍 Search payments..." oninput="filterRptPayments(this.value)" style="width:200px"/>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="data-table" id="rptPaymentsTable">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Client</th>
+            <th>Plan</th>
+            <th>Period</th>
+            <th>Devices</th>
+            <th>Method</th>
+            <th>Amount</th>
+            <th>Recorded By</th>
+          </tr>
+        </thead>
+        <tbody id="rptPaymentsBody">
+          <tr><td colspan="8" style="text-align:center;padding:20px;color:var(--muted)">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div id="rptPaymentsPagination" style="display:flex;justify-content:center;gap:8px;margin-top:12px"></div>
+  </div>
+
+  <!-- ROW 5: Sync activity -->
+  <div class="card" style="padding:18px">
+    <div class="card-title" style="margin-bottom:14px"><span>🔄</span> Sync Activity (Last 30 Days)</div>
+    <canvas id="rptSyncChart" height="120"></canvas>
+  </div>
+
+  <style>
+    .chart-toggle-btn{background:none;border:1px solid var(--border);color:var(--muted);font-size:11px;padding:4px 10px;border-radius:6px;cursor:pointer;font-family:inherit;transition:all .15s}
+    .chart-toggle-btn.active{background:var(--blue-lt);color:var(--blue);border-color:var(--blue)}
+  </style>
+</div>

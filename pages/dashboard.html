@@ -1,0 +1,190 @@
+<div id="page-dashboard" class="page">
+
+  <!-- KPI GRID -->
+  <div class="kpi-grid">
+    <div class="kpi green">
+      <div class="kpi-icon">🏢</div>
+      <div class="kpi-label">Total Clients</div>
+      <div class="kpi-value" id="kpiTotalClients">—</div>
+      <div class="kpi-change up" id="kpiClientsChange">+0% this month</div>
+    </div>
+    <div class="kpi blue">
+      <div class="kpi-icon">📋</div>
+      <div class="kpi-label">Active Subscriptions</div>
+      <div class="kpi-value" id="kpiActiveClients">—</div>
+      <div class="kpi-change up" id="kpiSubsChange">+0% this month</div>
+    </div>
+    <div class="kpi purple">
+      <div class="kpi-icon">📱</div>
+      <div class="kpi-label">Registered Devices</div>
+      <div class="kpi-value" id="kpiDevices">—</div>
+      <div class="kpi-change up" id="kpiDevicesChange">+0% this month</div>
+    </div>
+    <div class="kpi gold">
+      <div class="kpi-icon">💰</div>
+      <div class="kpi-label">Monthly Revenue</div>
+      <div class="kpi-value" id="kpiRevenue" style="font-size:20px">RWF 0</div>
+      <div class="kpi-change up" id="kpiRevenueChange">+0% this month</div>
+    </div>
+  </div>
+
+  <!-- ROW 2: Subscription Overview + Revenue Chart + Map -->
+  <div style="display:grid;grid-template-columns:320px 1fr 340px;gap:16px;margin-bottom:16px">
+
+    <!-- Subscription Overview (Donut) -->
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">Subscription Overview</div>
+        </div>
+        <select class="form-input btn-sm" style="width:110px;min-height:28px;font-size:11px" id="subPeriodFilter">
+          <option>This Month</option>
+          <option>This Year</option>
+          <option>All Time</option>
+        </select>
+      </div>
+      <div class="donut-wrap">
+        <div style="position:relative;width:110px;height:110px;flex-shrink:0">
+          <canvas id="donutChart" width="110" height="110"></canvas>
+          <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center">
+            <div style="font-size:22px;font-weight:800;color:var(--text)" id="donutTotal">0</div>
+            <div style="font-size:9px;color:var(--muted)">Active Total</div>
+          </div>
+        </div>
+        <div class="donut-legend" id="donutLegend">
+          <div class="donut-item"><div class="donut-item-left"><div class="donut-dot" style="background:var(--blue)"></div><span class="donut-label">Trial</span></div><div style="display:flex;gap:6px;align-items:center"><span class="donut-count" id="dlTrial">0</span><span class="donut-pct" id="dpTrial">(0%)</span><span class="donut-arrow">›</span></div></div>
+          <div class="donut-item"><div class="donut-item-left"><div class="donut-dot" style="background:var(--green)"></div><span class="donut-label">Monthly</span></div><div style="display:flex;gap:6px;align-items:center"><span class="donut-count" id="dlMonthly">0</span><span class="donut-pct" id="dpMonthly">(0%)</span><span class="donut-arrow">›</span></div></div>
+          <div class="donut-item"><div class="donut-item-left"><div class="donut-dot" style="background:var(--gold)"></div><span class="donut-label">Annual</span></div><div style="display:flex;gap:6px;align-items:center"><span class="donut-count" id="dlAnnual">0</span><span class="donut-pct" id="dpAnnual">(0%)</span><span class="donut-arrow">›</span></div></div>
+          <div class="donut-item"><div class="donut-item-left"><div class="donut-dot" style="background:var(--red)"></div><span class="donut-label">Expired</span></div><div style="display:flex;gap:6px;align-items:center"><span class="donut-count" id="dlExpired">0</span><span class="donut-pct" id="dpExpired">(0%)</span><span class="donut-arrow">›</span></div></div>
+        </div>
+      </div>
+      <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+        <span class="view-all" onclick="showPage('subscriptions')">View full report →</span>
+      </div>
+    </div>
+
+    <!-- Revenue Analytics Chart -->
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">Revenue Analytics</div>
+        </div>
+        <div style="display:flex;gap:6px">
+          <select class="form-input btn-sm" style="width:110px;min-height:28px;font-size:11px"><option>This Month</option><option>This Year</option></select>
+          <select class="form-input btn-sm" style="width:80px;min-height:28px;font-size:11px"><option>Daily</option><option>Weekly</option></select>
+        </div>
+      </div>
+      <div class="chart-container" style="height:150px">
+        <canvas id="revenueChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Live Map -->
+    <div class="card" style="padding:14px">
+      <div class="card-header" style="margin-bottom:10px">
+        <div class="card-title">Live Map Overview</div>
+        <select class="form-input btn-sm" style="width:120px;min-height:28px;font-size:11px"><option>All Locations</option></select>
+      </div>
+      <div id="dashMapContainer" style="height:180px;border-radius:8px;overflow:hidden;background:var(--card2)"></div>
+      <div class="map-legend" style="margin-top:8px">
+        <div class="map-legend-item"><div class="map-legend-dot" style="background:var(--green)"></div><span>Active <strong id="mapActiveCount" style="color:var(--text)">0</strong></span></div>
+        <div class="map-legend-item"><div class="map-legend-dot" style="background:var(--blue)"></div><span>Trial <strong id="mapTrialCount" style="color:var(--text)">0</strong></span></div>
+        <div class="map-legend-item"><div class="map-legend-dot" style="background:var(--red)"></div><span>Expired <strong id="mapExpiredCount" style="color:var(--text)">0</strong></span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ROW 3: Recent Subscriptions + Device Status + Recent Alerts -->
+  <div style="display:grid;grid-template-columns:1fr 260px 280px;gap:16px;margin-bottom:16px">
+
+    <!-- Recent Subscriptions -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Recent Subscriptions</div>
+        <span class="view-all" onclick="showPage('subscriptions')">View All</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Client / Business</th><th>Plan</th><th>Devices</th><th>Status</th><th>Next Payment</th><th>Amount</th><th></th></tr></thead>
+          <tbody id="dashRecentSubs">
+            <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">No subscriptions yet</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Device Status Donut -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Device Status</div>
+        <span class="view-all" onclick="showPage('devices')">View All →</span>
+      </div>
+      <div style="display:flex;justify-content:center;margin:10px 0;position:relative">
+        <canvas id="deviceDonut" width="120" height="120"></canvas>
+        <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center">
+          <div style="font-size:20px;font-weight:800;color:var(--text)" id="deviceDonutTotal">0</div>
+          <div style="font-size:9px;color:var(--muted)">Total</div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px">
+        <div class="flex-between"><div class="flex gap-8"><div class="dot dot-green"></div><span style="font-size:11px;color:var(--muted)">Active</span></div><span style="font-size:12px;font-weight:700;color:var(--green)" id="devActive">0</span></div>
+        <div class="flex-between"><div class="flex gap-8"><div class="dot dot-orange"></div><span style="font-size:11px;color:var(--muted)">Pending</span></div><span style="font-size:12px;font-weight:700;color:var(--orange)" id="devPending">0</span></div>
+        <div class="flex-between"><div class="flex gap-8"><div class="dot dot-red"></div><span style="font-size:11px;color:var(--muted)">Blocked</span></div><span style="font-size:12px;font-weight:700;color:var(--red)" id="devBlocked">0</span></div>
+      </div>
+    </div>
+
+    <!-- Recent Alerts -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Recent Alerts</div>
+        <span class="view-all" onclick="showPage('auditlog')">View All</span>
+      </div>
+      <div id="dashAlerts">
+        <div class="empty-state" style="padding:20px"><div class="icon" style="font-size:28px">✅</div><p>No alerts</p></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ROW 4: Recent Payments + Product Updates + System Activity -->
+  <div style="display:grid;grid-template-columns:1fr 280px 300px;gap:16px">
+
+    <!-- Recent Payments -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Recent Payments</div>
+        <span class="view-all" onclick="showPage('payments')">View All</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Client</th><th>Method</th><th>Amount</th><th>Date</th><th>Status</th></tr></thead>
+          <tbody id="dashRecentPayments">
+            <tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">No payments yet</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Product Updates -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Product Updates</div>
+        <span class="view-all" onclick="showPage('products')">View All</span>
+      </div>
+      <div id="dashProducts">
+        <div class="empty-state" style="padding:20px"><div class="icon" style="font-size:28px">📦</div><p>No products</p></div>
+      </div>
+    </div>
+
+    <!-- System Activity -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">System Activity</div>
+        <span class="view-all" onclick="showPage('auditlog')">View All</span>
+      </div>
+      <div id="dashActivity">
+        <div class="empty-state" style="padding:20px"><div class="icon" style="font-size:28px">📝</div><p>No activity yet</p></div>
+      </div>
+    </div>
+  </div>
+
+</div>

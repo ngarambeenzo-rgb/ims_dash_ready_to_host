@@ -1,0 +1,270 @@
+<div id="page-map" class="page">
+
+  <!-- TOPBAR ROW -->
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+    <div>
+      <div class="page-title">🗺️ Maps & Locations</div>
+      <div class="page-sub">Real-time client navigation — Rwanda</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+
+      <!-- Search bar -->
+      <div style="display:flex;align-items:center;gap:8px;background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:8px 14px;min-width:260px">
+        <span style="color:var(--muted);font-size:14px">🔍</span>
+        <input type="text" id="mapSearchInput" placeholder="Search clients, locations, addresses..."
+          style="background:none;border:none;outline:none;color:var(--text);font-size:12px;font-family:inherit;width:100%"
+          oninput="mapSearch(this.value)" onkeydown="if(event.key==='Enter')geocodeSearch(this.value)"/>
+        <div id="mapSearchResults" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--card);border:1px solid var(--border);border-radius:8px;z-index:500;max-height:200px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,0.3)"></div>
+      </div>
+
+      <!-- Filter pills -->
+      <div style="display:flex;gap:3px;background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:3px">
+        <button class="map-filter-btn active" onclick="filterMapByStatus('',this)">All Clients</button>
+        <button class="map-filter-btn" onclick="filterMapByStatus('active',this)" style="color:#00D084">● Active</button>
+        <button class="map-filter-btn" onclick="filterMapByStatus('trial',this)" style="color:#4D9EFF">● Trial</button>
+        <button class="map-filter-btn" onclick="filterMapByStatus('expired',this)" style="color:#FF4D6D">● Expired</button>
+      </div>
+
+      <!-- Tile switcher -->
+      <div style="display:flex;gap:2px;background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:3px">
+        <button id="tileBtn_dark"      class="map-tile-btn active" onclick="switchTile('dark')">🌑 Dark</button>
+        <button id="tileBtn_streets"   class="map-tile-btn"        onclick="switchTile('streets')">🗺️ Streets</button>
+        <button id="tileBtn_satellite" class="map-tile-btn"        onclick="switchTile('satellite')">🛰️ Satellite</button>
+        <button id="tileBtn_traffic"   class="map-tile-btn"        onclick="switchTile('traffic')">🚦 Traffic</button>
+      </div>
+
+      <button class="btn btn-primary btn-sm" onclick="loadMap()">🔄 Refresh</button>
+    </div>
+  </div>
+
+  <!-- STATS -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">
+    <div class="card" style="padding:12px;text-align:center;border-left:3px solid #00D084">
+      <div style="font-size:22px;font-weight:800;color:#00D084" id="mapStatActive">0</div>
+      <div style="font-size:11px;color:var(--muted)">🟢 Active</div>
+    </div>
+    <div class="card" style="padding:12px;text-align:center;border-left:3px solid #4D9EFF">
+      <div style="font-size:22px;font-weight:800;color:#4D9EFF" id="mapStatTrial">0</div>
+      <div style="font-size:11px;color:var(--muted)">🔵 Trial</div>
+    </div>
+    <div class="card" style="padding:12px;text-align:center;border-left:3px solid #FF4D6D">
+      <div style="font-size:22px;font-weight:800;color:#FF4D6D" id="mapStatExpired">0</div>
+      <div style="font-size:11px;color:var(--muted)">🔴 Expired</div>
+    </div>
+    <div class="card" style="padding:12px;text-align:center;border-left:3px solid #A855F7">
+      <div style="font-size:22px;font-weight:800;color:#A855F7" id="mapStatTotal">0</div>
+      <div style="font-size:11px;color:var(--muted)">📍 Total</div>
+    </div>
+  </div>
+
+  <!-- MAIN LAYOUT: Map + Sidebar -->
+  <div style="display:grid;grid-template-columns:1fr 340px;gap:14px;align-items:start">
+
+    <!-- MAP COLUMN -->
+    <div>
+      <!-- Map container -->
+      <div style="position:relative;border-radius:var(--r);overflow:hidden;border:1px solid var(--border)">
+        <div id="mainMapContainer" style="height:540px;width:100%"></div>
+
+        <!-- LIVE badge -->
+        <div style="position:absolute;top:12px;left:12px;z-index:1000;background:rgba(10,15,30,0.9);border:1px solid rgba(77,158,255,0.4);border-radius:20px;padding:5px 13px;backdrop-filter:blur(8px);display:flex;align-items:center;gap:6px">
+          <div style="width:7px;height:7px;border-radius:50%;background:#00D084;box-shadow:0 0 8px #00D084;animation:pulseLive 1.5s infinite"></div>
+          <span style="font-size:11px;font-weight:700;color:#E8EDF5">LIVE</span>
+          <span style="font-size:10px;color:var(--muted)" id="mapPinCount">0 clients</span>
+        </div>
+
+        <!-- My location button -->
+        <div style="position:absolute;top:12px;right:54px;z-index:1000">
+          <button onclick="locateMe()" style="background:rgba(10,15,30,0.9);border:1px solid rgba(77,158,255,0.4);border-radius:8px;padding:7px 12px;color:#4D9EFF;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;backdrop-filter:blur(8px)">
+            📍 My Location
+          </button>
+        </div>
+
+        <!-- Legend -->
+        <div style="position:absolute;bottom:16px;left:12px;z-index:1000;background:rgba(10,15,30,0.9);border:1px solid var(--border);border-radius:10px;padding:10px 14px;backdrop-filter:blur(8px)">
+          <div style="font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:7px">Legend</div>
+          <div style="display:flex;flex-direction:column;gap:5px">
+            <div style="display:flex;align-items:center;gap:7px;font-size:11px;color:#E8EDF5"><div style="width:8px;height:8px;border-radius:50%;background:#00D084;box-shadow:0 0 6px #00D084"></div>Active Client</div>
+            <div style="display:flex;align-items:center;gap:7px;font-size:11px;color:#E8EDF5"><div style="width:8px;height:8px;border-radius:50%;background:#4D9EFF;box-shadow:0 0 6px #4D9EFF"></div>Trial Client</div>
+            <div style="display:flex;align-items:center;gap:7px;font-size:11px;color:#E8EDF5"><div style="width:8px;height:8px;border-radius:50%;background:#FF4D6D;box-shadow:0 0 6px #FF4D6D"></div>Expired Client</div>
+            <div style="display:flex;align-items:center;gap:7px;font-size:11px;color:#E8EDF5"><div style="width:8px;height:8px;border-radius:50%;background:#4D9EFF;border:2px solid #fff"></div>Your Location</div>
+          </div>
+        </div>
+
+        <!-- Scale indicator -->
+        <div style="position:absolute;bottom:16px;right:60px;z-index:1000">
+          <div id="mapScale" style="background:rgba(10,15,30,0.8);border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:10px;color:var(--muted)">Scale</div>
+        </div>
+      </div>
+
+      <!-- DIRECTIONS PANEL -->
+      <div id="directionsPanel" style="display:none;background:var(--card);border:1px solid var(--border);border-radius:0 0 var(--r) var(--r);padding:16px;margin-top:-1px;border-top:1px solid var(--border)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <div style="font-size:14px;font-weight:700;color:var(--text)">🧭 Directions</div>
+          <button onclick="closeDirections()" style="background:var(--card2);border:1px solid var(--border);border-radius:6px;color:var(--muted);cursor:pointer;padding:4px 10px;font-size:12px">✕ Close</button>
+        </div>
+
+        <!-- From / To -->
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;background:var(--card2);border-radius:8px;padding:12px">
+          <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
+            <div style="width:10px;height:10px;border-radius:50%;background:#4D9EFF;border:2px solid #fff;box-shadow:0 0 8px #4D9EFF"></div>
+            <div style="width:1px;height:20px;background:var(--border);margin-left:4px"></div>
+            <div style="width:10px;height:10px;border-radius:50%;background:#FF4D6D;box-shadow:0 0 8px #FF4D6D"></div>
+          </div>
+          <div style="flex:1">
+            <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">From</div>
+            <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:8px" id="dirFrom">📍 Your Current Location</div>
+            <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">To</div>
+            <div style="font-size:12px;font-weight:600;color:var(--text)" id="dirTo">—</div>
+          </div>
+        </div>
+
+        <!-- Route options -->
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">
+          <div class="route-card active-route" id="routeCard0" onclick="selectRoute(0,this)">
+            <div style="font-size:9px;color:var(--muted);text-transform:uppercase;margin-bottom:4px">Fastest</div>
+            <div style="font-size:20px;font-weight:800;color:#00D084" id="route0Time">—</div>
+            <div style="font-size:11px;color:var(--muted)" id="route0Dist">—</div>
+            <div style="font-size:9px;color:var(--faint);margin-top:2px" id="route0Via">Light traffic</div>
+          </div>
+          <div class="route-card" id="routeCard1" onclick="selectRoute(1,this)">
+            <div style="font-size:9px;color:var(--muted);text-transform:uppercase;margin-bottom:4px">Shortest</div>
+            <div style="font-size:20px;font-weight:800;color:#4D9EFF" id="route1Time">—</div>
+            <div style="font-size:11px;color:var(--muted)" id="route1Dist">—</div>
+            <div style="font-size:9px;color:var(--faint);margin-top:2px" id="route1Via">Moderate traffic</div>
+          </div>
+          <div class="route-card" id="routeCard2" onclick="selectRoute(2,this)">
+            <div style="font-size:9px;color:var(--muted);text-transform:uppercase;margin-bottom:4px">Alt Route</div>
+            <div style="font-size:20px;font-weight:800;color:#FF8C42" id="route2Time">—</div>
+            <div style="font-size:11px;color:var(--muted)" id="route2Dist">—</div>
+            <div style="font-size:9px;color:var(--faint);margin-top:2px" id="route2Via">Heavy traffic</div>
+          </div>
+        </div>
+
+        <!-- Bottom nav bar like reference image -->
+        <div style="display:flex;align-items:center;justify-content:space-between;background:var(--card2);border-radius:10px;padding:12px 16px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="width:32px;height:32px;border-radius:50%;background:var(--blue-lt);display:flex;align-items:center;justify-content:center;color:var(--blue);font-size:14px">📍</div>
+            <div>
+              <div style="font-size:10px;color:var(--muted)">From</div>
+              <div style="font-size:12px;font-weight:600;color:var(--text)">Your Location</div>
+            </div>
+          </div>
+          <span style="color:var(--blue);font-size:18px">→</span>
+          <div style="display:flex;align-items:center;gap:10px">
+            <div>
+              <div style="font-size:10px;color:var(--muted);text-align:right">To</div>
+              <div style="font-size:12px;font-weight:600;color:var(--text);text-align:right" id="dirToShort">—</div>
+            </div>
+            <div style="width:32px;height:32px;border-radius:50%;background:var(--red-lt);display:flex;align-items:center;justify-content:center;color:var(--red);font-size:14px">🏢</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:18px;font-weight:800;color:#00D084" id="dirSummaryTime">—</div>
+            <div style="font-size:10px;color:var(--muted)" id="dirSummaryDist">—</div>
+          </div>
+          <button onclick="startNavigation()" style="background:linear-gradient(135deg,#4D9EFF,#2563EB);border:none;border-radius:8px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;padding:10px 18px;font-family:inherit;display:flex;align-items:center;gap:6px">
+            ▶ Start Navigation
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- SIDEBAR COLUMN -->
+    <div style="display:flex;flex-direction:column;gap:12px">
+
+      <!-- Client list -->
+      <div class="card" style="padding:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <div class="card-title" style="margin:0">📍 Client Locations</div>
+          <span style="font-size:10px;color:var(--muted)" id="mapClientCount">0</span>
+        </div>
+        <input type="text" class="search-input" placeholder="🔍 Search client..." oninput="filterMapClients(this.value)" style="margin-bottom:8px"/>
+        <div id="mapClientList" style="overflow-y:auto;max-height:240px;display:flex;flex-direction:column;gap:5px;scrollbar-width:thin;scrollbar-color:var(--border) transparent">
+          <div style="text-align:center;padding:20px;color:var(--muted)">Loading...</div>
+        </div>
+      </div>
+
+      <!-- GET DIRECTIONS -->
+      <div class="card" style="padding:14px">
+        <div class="card-title" style="margin-bottom:12px"><span>🧭</span> Route & Directions</div>
+        <div class="form-group">
+          <label class="form-label">Select Destination Client</label>
+          <select class="form-input" id="distClientSelect" style="font-size:12px">
+            <option value="">Choose client...</option>
+          </select>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <button class="btn btn-primary" style="justify-content:center;font-size:12px" onclick="calculateDistance()">
+            🧭 Get Directions
+          </button>
+          <button class="btn btn-ghost" style="justify-content:center;font-size:12px" onclick="openInGoogleMaps()">
+            🌐 Google Maps
+          </button>
+        </div>
+        <div id="distResult" style="margin-top:8px;font-size:12px;color:var(--muted)"></div>
+      </div>
+
+      <!-- NEARBY PLACES -->
+      <div class="card" style="padding:14px">
+        <div class="card-title" style="margin-bottom:12px"><span>🏪</span> Nearby Places</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+          <button class="nearby-btn" onclick="findNearby('restaurant')">🍽️ Restaurants</button>
+          <button class="nearby-btn" onclick="findNearby('hotel')">🏨 Hotels</button>
+          <button class="nearby-btn" onclick="findNearby('gas_station')">⛽ Gas Stations</button>
+          <button class="nearby-btn" onclick="findNearby('bank')">🏦 Banks</button>
+          <button class="nearby-btn" onclick="findNearby('hospital')">🏥 Hospitals</button>
+          <button class="nearby-btn" onclick="findNearby('pharmacy')">💊 Pharmacy</button>
+        </div>
+      </div>
+
+      <!-- MAP TOOLS -->
+      <div class="card" style="padding:14px">
+        <div class="card-title" style="margin-bottom:12px"><span>🛠️</span> Map Tools</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <button class="btn btn-ghost" style="justify-content:flex-start;font-size:12px;gap:8px" onclick="locateMe()">
+            📍 Find My Location
+          </button>
+          <button class="btn btn-ghost" style="justify-content:flex-start;font-size:12px;gap:8px" onclick="toggleMapFullscreen()">
+            ⛶ Fullscreen Map
+          </button>
+          <button class="btn btn-ghost" style="justify-content:flex-start;font-size:12px;gap:8px" onclick="shareMapLink()">
+            🔗 Share Map Link
+          </button>
+          <button class="btn btn-ghost" style="justify-content:flex-start;font-size:12px;gap:8px" onclick="printMap()">
+            🖨️ Print Map
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    .map-tile-btn,.map-filter-btn{background:none;border:none;color:var(--muted);font-size:11px;font-weight:500;padding:5px 10px;border-radius:6px;cursor:pointer;font-family:inherit;transition:all .15s;white-space:nowrap}
+    .map-tile-btn:hover,.map-filter-btn:hover{background:var(--card);color:var(--text)}
+    .map-tile-btn.active,.map-filter-btn.active{background:var(--blue-lt);color:var(--blue);font-weight:700}
+
+    .route-card{background:var(--card2);border:1.5px solid var(--border);border-radius:10px;padding:10px 12px;cursor:pointer;transition:all .15s;text-align:center}
+    .route-card:hover{border-color:var(--blue);background:var(--blue-lt)}
+    .active-route{border-color:var(--blue)!important;background:rgba(77,158,255,0.1)!important}
+
+    .nearby-btn{background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:8px;font-size:11px;cursor:pointer;font-family:inherit;color:var(--text);transition:all .15s;text-align:center}
+    .nearby-btn:hover{background:var(--blue-lt);border-color:var(--blue);color:var(--blue)}
+
+    @keyframes pulseLive{0%,100%{opacity:1;box-shadow:0 0 8px #00D084}50%{opacity:.5;box-shadow:0 0 16px #00D084}}
+    @keyframes pinRing1{0%{transform:translate(-50%,-50%) scale(0.3);opacity:0.6}100%{transform:translate(-50%,-50%) scale(1.8);opacity:0}}
+    @keyframes pinRing2{0%{transform:translate(-50%,-50%) scale(0.4);opacity:0.5}100%{transform:translate(-50%,-50%) scale(1.5);opacity:0}}
+    @keyframes sidebarDot{0%,100%{transform:scale(1);opacity:0.3}50%{transform:scale(1.8);opacity:0.05}}
+
+    .ims-popup .leaflet-popup-content-wrapper{background:#131C2E;border:1px solid rgba(77,158,255,0.3);border-radius:14px;box-shadow:0 16px 48px rgba(0,0,0,0.6);padding:0}
+    .ims-popup .leaflet-popup-content{margin:0;width:250px!important}
+    .ims-popup .leaflet-popup-tip{background:#131C2E}
+    .ims-popup .leaflet-popup-close-button{color:#7B8CAA!important;top:8px!important;right:10px!important;font-size:16px!important}
+    .ims-tooltip{background:rgba(10,15,30,0.92)!important;border:1px solid rgba(77,158,255,0.3)!important;color:#E8EDF5!important;font-size:11px!important;font-weight:600!important;font-family:inherit!important;border-radius:6px!important;padding:4px 10px!important}
+    .ims-tooltip::before{display:none!important}
+
+    .leaflet-control-zoom a{background:rgba(10,15,30,0.9)!important;color:#E8EDF5!important;border-color:rgba(31,45,69,0.8)!important;font-weight:700!important}
+    .leaflet-control-zoom a:hover{background:rgba(77,158,255,0.2)!important;color:#4D9EFF!important}
+    .leaflet-bar{border:1px solid rgba(31,45,69,0.8)!important;box-shadow:0 4px 16px rgba(0,0,0,0.3)!important}
+    .leaflet-control-attribution{background:rgba(10,15,30,0.75)!important;color:#3A4A65!important;font-size:9px!important}
+  </style>
+</div>

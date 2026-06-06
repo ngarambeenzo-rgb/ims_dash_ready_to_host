@@ -1,0 +1,18 @@
+<div id="page-subscriptions" class="page" style="display:none">
+  <div class="page-header">
+    <div><div class="page-title">📋 Subscriptions</div><div class="page-sub">Manage client subscriptions and renewals</div></div>
+    <button class="btn btn-primary" onclick="showRenewSubscription()">🔄 Renew Subscription</button>
+  </div>
+  <div class="tabs">
+    <div class="tab active" onclick="switchSubTab('active',this)">Active</div>
+    <div class="tab" onclick="switchSubTab('expired',this)">Expired</div>
+    <div class="tab" onclick="switchSubTab('trial',this)">Trial</div>
+    <div class="tab" onclick="switchSubTab('all',this)">All</div>
+  </div>
+  <div class="card">
+    <div class="table-wrap"><table>
+      <thead><tr><th>Client</th><th>Plan</th><th>Max Devices</th><th>Start</th><th>Expiry</th><th>Days Left</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody id="subsTable"><tr><td colspan="8" style="text-align:center;color:var(--muted);padding:32px">Loading...</td></tr></tbody>
+    </table></div>
+  </div>
+</div>

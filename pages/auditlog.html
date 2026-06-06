@@ -1,0 +1,25 @@
+<div id="page-auditlog" class="page" style="display:none">
+  <div class="page-header">
+    <div><div class="page-title">📝 Audit Log</div><div class="page-sub">Every action taken inside IMS</div></div>
+  </div>
+  <div class="search-bar">
+    <input type="text" class="search-input" placeholder="🔍 Search logs..." oninput="filterLogs(this.value)"/>
+    <select class="form-input" style="width:200px;min-height:40px" onchange="filterLogsByType(this.value)">
+      <option value="">All Actions</option>
+      <option value="LOGIN">Login</option>
+      <option value="CLIENT_ADD">Client Added</option>
+      <option value="PAYMENT">Payment Recorded</option>
+      <option value="LICENSE_ISSUED">License Issued</option>
+      <option value="DEVICE_APPROVED">Device Approved</option>
+      <option value="DEVICE_BLOCKED">Device Blocked</option>
+      <option value="SUB_RENEWED">Subscription Renewed</option>
+      <option value="CLIENT_SUSPENDED">Client Suspended</option>
+    </select>
+  </div>
+  <div class="card">
+    <div class="table-wrap"><table>
+      <thead><tr><th>Action</th><th>Details</th><th>Done By</th><th>Date & Time</th></tr></thead>
+      <tbody id="auditTable"><tr><td colspan="4" style="text-align:center;color:var(--muted);padding:32px">Loading...</td></tr></tbody>
+    </table></div>
+  </div>
+</div>

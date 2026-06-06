@@ -1,0 +1,22 @@
+# Private keys — NEVER commit these
+config/keys/
+*.pem
+
+# Test and diagnostic files
+test_login.php
+generate_keys.php
+
+# Local environment
+.env
+.env.local
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Update ZIP files (too large for git)
+updates/*.zip
+
+# PHP logs
+*.log
+error_log
