@@ -8,10 +8,11 @@ async function loadSettings() {
 function switchSettingsTab(tab, btn) {
   document.querySelectorAll('#page-settings .tab').forEach(t => t.classList.remove('active'));
   btn.classList.add('active');
-  ['settingsAdmins','settingsPlans','settingsKeys','settingsSystem'].forEach(id => {
+  ['settingsAdmins','settingsPlans','settingsKeys','settingsSystem','settingsEmail'].forEach(id => {
     document.getElementById(id).style.display = 'none';
   });
-  const map = { admins:'settingsAdmins', plans:'settingsPlans', keys:'settingsKeys', system:'settingsSystem' };
+  const map = { admins:'settingsAdmins', plans:'settingsPlans', keys:'settingsKeys', system:'settingsSystem', email:'settingsEmail' };
+  if (tab === 'email') loadEmailSettings();
   document.getElementById(map[tab]).style.display = 'block';
 }
 

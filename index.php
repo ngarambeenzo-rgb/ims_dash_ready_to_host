@@ -1,6 +1,5 @@
 <?php
-if (session_status() === PHP_SESSION_NONE) session_start();
-if (empty($_SESSION['ims_csrf'])) $_SESSION['ims_csrf'] = bin2hex(random_bytes(32));
+require_once __DIR__ . '/config/db.php';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -34,7 +33,6 @@ if (empty($_SESSION['ims_csrf'])) $_SESSION['ims_csrf'] = bin2hex(random_bytes(3
         <label class="form-label" data-i18n="password">Password</label>
         <input type="password" id="loginPass" class="form-input" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"/>
       </div>
-      <!-- FIX: was display:none AND display:flex simultaneously — only one style attr wins. Use display:none only. -->
       <div id="loginErr" style="display:none;color:var(--red);font-size:12px;margin-bottom:12px;align-items:center;gap:6px">
         <span>❌</span><span data-i18n="invalidCredentials">Invalid credentials. Try again.</span>
       </div>
@@ -104,6 +102,9 @@ if (empty($_SESSION['ims_csrf'])) $_SESSION['ims_csrf'] = bin2hex(random_bytes(3
       <div class="nav-item" onclick="showPage('map')">
         <span class="nav-icon">🗺️</span><span data-i18n="clientMap">Maps & Locations</span>
       </div>
+      <div class="nav-item" onclick="showPage('support')">
+        <span class="nav-icon">💬</span><span>Support inbox</span><span class="nav-badge" id="supportBadge" style="display:none"></span>
+      </div>
       <div class="nav-item" onclick="showPage('auditlog')">
         <span class="nav-icon">📝</span><span data-i18n="auditLog">Audit Logs</span>
       </div>
@@ -159,6 +160,7 @@ if (empty($_SESSION['ims_csrf'])) $_SESSION['ims_csrf'] = bin2hex(random_bytes(3
         <kbd>CTRL K</kbd>
       </div>
       <div class="topbar-right">
+        <span id="topbarAdmin" style="font-size:13px;font-weight:600;color:var(--text);white-space:nowrap"></span>
         <div class="topbar-datetime">
           <p id="topDate"></p>
           <p id="topTime"></p>
@@ -193,11 +195,10 @@ if (empty($_SESSION['ims_csrf'])) $_SESSION['ims_csrf'] = bin2hex(random_bytes(3
     <!-- CONTENT -->
     <div class="content" id="pageContent">
       <?php
-        // FIX: 'reports' was missing from this list — page-reports never rendered
         $pages = [
           'dashboard', 'clients', 'subscriptions', 'payments',
           'devices',   'licenses', 'products',      'reports',
-          'map',       'auditlog', 'settings'
+          'map',       'auditlog', 'settings', 'support'
         ];
         foreach ($pages as $page) {
           $file = "pages/{$page}.html";
@@ -227,12 +228,8 @@ if (empty($_SESSION['ims_csrf'])) $_SESSION['ims_csrf'] = bin2hex(random_bytes(3
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
-<!-- JS — load order matters: utils → api → auth → navigation → features -->
 <script src="assets/js/utils.js?v=7"></script>
 <script src="assets/js/shared_helpers.js?v=7"></script>
-<script src="assets/js/utils.js?v=7"></script>
-<script src="assets/js/shared_helpers.js?v=7"></script>  ← ADD THIS
-<script src="assets/js/api.js?v=7"></script>
 <script src="assets/js/api.js?v=7"></script>
 <script src="assets/js/auth.js?v=7"></script>
 <script src="assets/js/navigation.js?v=7"></script>
@@ -245,7 +242,8 @@ if (empty($_SESSION['ims_csrf'])) $_SESSION['ims_csrf'] = bin2hex(random_bytes(3
 <script src="assets/js/products.js?v=7"></script>
 <script src="assets/js/map.js?v=7"></script>
 <script src="assets/js/reports.js?v=7"></script>
-<script src="assets/js/settings.js?v=7"></script>
+<script src="assets/js/settings.js?v=8"></script>
+<script src="assets/js/support.js?v=1"></script>
 
 <script>
   // ── Clock ──────────────────────────────────────────────────
@@ -286,7 +284,7 @@ if (empty($_SESSION['ims_csrf'])) $_SESSION['ims_csrf'] = bin2hex(random_bytes(3
     if (p) p.style.display = 'none';
   }
 
-  // ── Global search — routes to clients for now ─────────────
+  // ── Global search ─────────────────────────────────────────
   function globalSearchFn(q) {
     if (q.length > 1) showPage('clients');
   }

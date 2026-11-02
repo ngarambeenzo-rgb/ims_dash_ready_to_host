@@ -121,6 +121,7 @@ if ($action === 'dashboard') {
 }
 
 if ($action === 'alerts') {
+    try { require_once __DIR__ . '/notify_lib.php'; imsRunPaymentAlerts(getDB()); } catch (Throwable $e) {}
     $now = date('Y-m-d');
     $in7 = date('Y-m-d', strtotime('+7 days'));
     $alerts = [];

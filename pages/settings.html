@@ -7,6 +7,7 @@
     <div class="tab" onclick="switchSettingsTab('plans',this)">📋 Plans</div>
     <div class="tab" onclick="switchSettingsTab('keys',this)">🔐 RSA Keys</div>
     <div class="tab" onclick="switchSettingsTab('system',this)">⚙️ System</div>
+    <div class="tab" onclick="switchSettingsTab('email',this)">✉️ Email &amp; alerts</div>
   </div>
 
   <div id="settingsAdmins">
@@ -54,6 +55,47 @@
         <button class="btn btn-ghost" onclick="viewPublicKey()">👁 View Public Key</button>
         <button class="btn btn-ghost" onclick="downloadPublicKey()">⬇ Download Public Key</button>
       </div>
+    </div>
+  </div>
+
+  <div id="settingsEmail" style="display:none">
+    <div class="card">
+      <div class="card-title"><span>✉️</span> Who receives emails</div>
+      <p style="font-size:13px;color:var(--muted);margin:6px 0 14px">One address per line (or separated by commas). Changes apply to every BarMS at once — nothing to update in the bars.</p>
+      <div class="form-row cols-2">
+        <div class="form-group"><label class="form-label">Support messages from BarMS owners</label>
+          <textarea class="form-input" id="emSupport" rows="4" placeholder="support@ims.rw&#10;enzo@gmail.com"></textarea>
+          <div id="emSupportCount" style="font-size:12px;color:var(--muted);margin-top:4px"></div></div>
+        <div class="form-group"><label class="form-label">Payment alerts (clients who must pay)</label>
+          <textarea class="form-input" id="emAlerts" rows="4" placeholder="accounts@ims.rw"></textarea>
+          <div id="emAlertsCount" style="font-size:12px;color:var(--muted);margin-top:4px"></div></div>
+      </div>
+      <div class="form-group" style="max-width:320px"><label class="form-label">Warn this many days before a subscription ends</label>
+        <input type="number" class="form-input" id="emDays" min="1" max="60" value="7"/></div>
+    </div>
+    <div class="card">
+      <div class="card-title"><span>📮</span> Sending service (Brevo — free 300 emails a day)</div>
+      <p style="font-size:13px;color:var(--muted);margin:6px 0 14px">Your hosting blocks normal PHP email, so IMS sends through Brevo. Create a free account at app.brevo.com, verify a sender address, then paste an API key (SMTP &amp; API → API keys).</p>
+      <div class="form-row cols-2">
+        <div class="form-group"><label class="form-label">Brevo API key</label>
+          <input type="password" class="form-input" id="emKey" autocomplete="new-password" placeholder="xkeysib-…"/>
+          <div id="emKeyHint" style="font-size:12px;color:var(--muted);margin-top:4px"></div></div>
+        <div class="form-group"><label class="form-label">Sender address (verified in Brevo)</label>
+          <input type="email" class="form-input" id="emFrom" placeholder="noreply@yourdomain.com"/></div>
+        <div class="form-group"><label class="form-label">Sender name</label>
+          <input type="text" class="form-input" id="emFromName" placeholder="IMS — BarMS"/></div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-primary" onclick="saveEmailSettings()">Save</button>
+        <button class="btn btn-ghost" onclick="testEmail()">Send a test email</button>
+        <button class="btn btn-ghost" onclick="runAlertsNow()">Check payments now</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title"><span>🔔</span> Payment alerts sent</div>
+      <p style="font-size:13px;color:var(--muted);margin:6px 0 12px">IMS checks automatically every hour while bars are online, and emails each client's due date once (ending soon, ending today, overdue).</p>
+      <div class="table-wrap"><table><thead><tr><th>Client</th><th>Alert</th><th>Subscription ends</th><th>Sent to</th><th>Result</th><th>When</th></tr></thead>
+        <tbody id="emAlertLog"></tbody></table></div>
     </div>
   </div>
 

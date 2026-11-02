@@ -1,10 +1,19 @@
 <?php
-// ============================================================
-//  IMS — api/licenses.php  (FIXED)
-//  BarMS-facing: activate_with_key, renew, get_for_device
-//  Admin-facing: list, generate, revoke, view_token
-// ============================================================
 require_once __DIR__ . '/../config/db.php';
+
+set_exception_handler(function (Throwable $error) {
+    $host = strtolower(explode(':', $_SERVER['HTTP_HOST'] ?? '')[0]);
+    $isLocal = in_array($host, ['localhost', '127.0.0.1'], true)
+        || preg_match('/^(192\.168|10)\./', $host);
+
+    error_log('[IMS licenses] ' . $error->getMessage());
+    http_response_code(500);
+    header('Content-Type: application/json');
+    $response = ['ok' => false, 'error' => 'License request failed'];
+    if ($isLocal) $response['message'] = $error->getMessage();
+    echo json_encode($response);
+    exit;
+});
 
 $action = $_REQUEST['action'] ?? 'list';
 $db     = getDB();
@@ -42,10 +51,10 @@ if ($action === 'activate_with_key') {
 
     // Get active subscription
     $subStmt = $db->prepare('
-        SELECT s.*, sp.name AS plan_name, sp.max_devices
+        SELECT s.*, sp.name AS plan_name
         FROM ims_subscriptions s
         JOIN ims_subscription_plans sp ON sp.id = s.plan_id
-        WHERE s.client_id = ? AND s.status = "active"
+        WHERE s.client_id = ? AND s.status IN ("active", "trial")
         ORDER BY s.expiry_date DESC LIMIT 1
     ');
     $subStmt->execute([$clientId]);
@@ -62,13 +71,25 @@ if ($action === 'activate_with_key') {
     $maxDevices = (int)($sub['max_devices'] ?? 2);
 
     // Register or find device
+    $globalDeviceStmt = $db->prepare('SELECT client_id FROM ims_devices WHERE device_uuid=? LIMIT 1');
+    $globalDeviceStmt->execute([$deviceUuid]);
+    $registeredDevice = $globalDeviceStmt->fetch();
+    if ($registeredDevice && (int)$registeredDevice['client_id'] !== $clientId) {
+        jsonOut(['ok' => false, 'error' => 'device_uuid_conflict'], 409);
+    }
+
     $devStmt = $db->prepare('SELECT * FROM ims_devices WHERE client_id=? AND device_uuid=? LIMIT 1');
     $devStmt->execute([$clientId, $deviceUuid]);
     $device = $devStmt->fetch();
 
     if (!$device) {
-        $db->prepare('INSERT INTO ims_devices (client_id, device_uuid, device_name, status) VALUES (?,?,?,?)')
-           ->execute([$clientId, $deviceUuid, $deviceName, 'approved']);
+        $countStmt = $db->prepare('SELECT COUNT(*) FROM ims_devices WHERE client_id=? AND status IN ("pending", "approved")');
+        $countStmt->execute([$clientId]);
+        if ((int)$countStmt->fetchColumn() >= $maxDevices) {
+            jsonOut(['ok' => false, 'error' => 'Maximum number of devices reached. Contact IMS Company.'], 403);
+        }
+        $db->prepare('INSERT INTO ims_devices (client_id, device_uuid, device_name, device_type, status) VALUES (?,?,?,?,?)')
+           ->execute([$clientId, $deviceUuid, $deviceName, $deviceType, 'approved']);
         $deviceId = (int)$db->lastInsertId();
     } else {
         $deviceId = (int)$device['id'];
@@ -133,7 +154,7 @@ if ($action === 'renew') {
         jsonOut(['ok' => false, 'lockNow' => true, 'error' => 'device_blocked', 'message' => 'Device blocked. Contact IMS Company.'], 403);
     }
 
-    $subStmt = $db->prepare('SELECT s.*, sp.name AS plan_name, sp.max_devices FROM ims_subscriptions s JOIN ims_subscription_plans sp ON sp.id=s.plan_id WHERE s.client_id=? AND s.status="active" ORDER BY s.expiry_date DESC LIMIT 1');
+    $subStmt = $db->prepare('SELECT s.*, sp.name AS plan_name FROM ims_subscriptions s JOIN ims_subscription_plans sp ON sp.id=s.plan_id WHERE s.client_id=? AND s.status IN ("active", "trial") ORDER BY s.expiry_date DESC LIMIT 1');
     $subStmt->execute([$clientId]);
     $sub = $subStmt->fetch();
 
@@ -179,7 +200,7 @@ if ($action === 'get_for_device') {
     $client = $clientStmt->fetch();
     if (!$client) jsonOut(['ok' => false, 'error' => 'client_not_found'], 404);
 
-    $subStmt = $db->prepare('SELECT s.*, sp.name AS plan_name, sp.max_devices FROM ims_subscriptions s JOIN ims_subscription_plans sp ON sp.id=s.plan_id WHERE s.client_id=? AND s.status="active" ORDER BY s.expiry_date DESC LIMIT 1');
+    $subStmt = $db->prepare('SELECT s.*, sp.name AS plan_name FROM ims_subscriptions s JOIN ims_subscription_plans sp ON sp.id=s.plan_id WHERE s.client_id=? AND s.status IN ("active", "trial") ORDER BY s.expiry_date DESC LIMIT 1');
     $subStmt->execute([$clientId]);
     $sub = $subStmt->fetch();
     if (!$sub) jsonOut(['ok' => false, 'error' => 'no_active_subscription'], 403);
@@ -278,7 +299,7 @@ jsonOut(['ok' => false, 'error' => 'Unknown action'], 400);
 // ══════════════════════════════════════════════════════════════
 function _generateLicense($clientId, $deviceId, $planId, $maxDevices, $durationHrs = 24) {
     $db = getDB();
-    $cStmt = $db->prepare('SELECT c.*, sp.name AS plan_name FROM ims_clients c LEFT JOIN ims_subscriptions s ON s.client_id=c.id AND s.status="active" LEFT JOIN ims_subscription_plans sp ON sp.id=s.plan_id WHERE c.id=? LIMIT 1');
+    $cStmt = $db->prepare('SELECT c.*, sp.name AS plan_name FROM ims_clients c LEFT JOIN ims_subscriptions s ON s.client_id=c.id AND s.status IN ("active", "trial") LEFT JOIN ims_subscription_plans sp ON sp.id=s.plan_id WHERE c.id=? LIMIT 1');
     $cStmt->execute([$clientId]);
     $client = $cStmt->fetch();
     if (!$client) return false;
@@ -291,7 +312,7 @@ function _generateLicense($clientId, $deviceId, $planId, $maxDevices, $durationH
         $deviceUuid = $dev['device_uuid'] ?? '';
     }
 
-    $subStmt = $db->prepare('SELECT expiry_date FROM ims_subscriptions WHERE client_id=? AND status="active" ORDER BY expiry_date DESC LIMIT 1');
+    $subStmt = $db->prepare('SELECT expiry_date FROM ims_subscriptions WHERE client_id=? AND status IN ("active", "trial") ORDER BY expiry_date DESC LIMIT 1');
     $subStmt->execute([$clientId]);
     $sub = $subStmt->fetch();
 

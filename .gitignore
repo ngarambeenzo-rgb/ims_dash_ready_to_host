@@ -20,3 +20,19 @@ updates/*.zip
 # PHP logs
 *.log
 error_log
+check_login.php
+
+# Secrets — the live server's database password (template: config/db.hosting.example.php)
+config/db.hosting.php
+
+# Debug scripts (one of them prints a client's activation key)
+api/test*.php
+
+# Stray copies and editor files
+manifest (1).json
+sw (1).js
+index.php back
+*.bak
+*.tmp
+.vscode/
+.idea/

@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS `ims_admins` (
   `created_at`     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Default admin: username=admin, password=admin123
+-- Default admin: username=admin, password=password  (change it right after the first sign-in)
 INSERT IGNORE INTO `ims_admins` (`full_name`, `username`, `password`) VALUES
 ('IMS Admin', 'admin', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi');
 
@@ -61,6 +61,7 @@ CREATE TABLE IF NOT EXISTS `ims_clients` (
   `location`      VARCHAR(255),
   `contact_phone` VARCHAR(20),
   `contact_email` VARCHAR(100),
+  `activation_key` VARCHAR(64) NULL UNIQUE,
   `product_id`    INT NOT NULL DEFAULT 1,
   `status`        ENUM('active','expired','trial','suspended') DEFAULT 'trial',
   `created_at`    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

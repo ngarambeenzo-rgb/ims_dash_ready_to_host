@@ -1,45 +1,57 @@
 <?php
 // ============================================================
-//  IMS — config/db.php
-//  Reads DB credentials from environment variables on Railway
-//  Falls back to localhost defaults for local development
+//  IMS Dashboard — Database Configuration
+//  Local XAMPP below; a live server reads config/db.hosting.php
 // ============================================================
 
-error_reporting(E_ALL & ~E_NOTICE & ~E_WARNING);
+error_reporting(0);
 ini_set('display_errors', 0);
 
-// ── Railway provides these environment variables automatically
-// ── when you add a MySQL plugin to your project
-define('IMS_DB_HOST', getenv('MYSQLHOST')     ?: getenv('DB_HOST') ?: 'localhost');
-define('IMS_DB_PORT', getenv('MYSQLPORT')     ?: getenv('DB_PORT') ?: '3306');
-define('IMS_DB_USER', getenv('MYSQLUSER')     ?: getenv('DB_USER') ?: 'root');
-define('IMS_DB_PASS', getenv('MYSQLPASSWORD') ?: getenv('DB_PASS') ?: '');
-define('IMS_DB_NAME', getenv('MYSQLDATABASE') ?: getenv('DB_NAME') ?: 'ims');
+// CORS - send first before anything else
+$origin = $_SERVER['HTTP_ORIGIN'] ?? '*';
+header('Access-Control-Allow-Origin: ' . $origin);
+header('Access-Control-Allow-Credentials: true');
+header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type, X-CSRF-Token, Authorization');
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit(0); }
 
-// ── Keys directory — use /tmp on Railway (writable), local path in dev
-define('IMS_KEYS_DIR', getenv('RAILWAY_ENVIRONMENT')
-    ? '/tmp/ims_keys/'
-    : __DIR__ . '/keys/'
-);
+// Local XAMPP when running on localhost, config/db.hosting.php otherwise
+$imsHost    = strtolower(explode(':', $_SERVER['HTTP_HOST'] ?? 'localhost')[0]);
+$imsIsLocal = in_array($imsHost, ['localhost', '127.0.0.1'], true)
+           || preg_match('/^(192\.168|10)\./', $imsHost);
 
-// ── Session ──────────────────────────────────────────────────
+if ($imsIsLocal) {
+    define('IMS_DB_HOST', 'localhost');
+    define('IMS_DB_PORT', '3306');
+    define('IMS_DB_USER', 'root');
+    define('IMS_DB_PASS', '');
+    define('IMS_DB_NAME', 'ims_db');
+} else {
+    // Live server: the real settings live in config/db.hosting.php (never committed: it holds the
+    // database password; template: db.hosting.example.php)
+    if (!is_file(__DIR__ . '/db.hosting.php')) {
+        http_response_code(500); header('Content-Type: application/json');
+        exit(json_encode(['ok' => false, 'error' => 'Server not configured: create config/db.hosting.php']));
+    }
+    require __DIR__ . '/db.hosting.php';
+}
+define('IMS_KEYS_DIR', __DIR__ . '/keys/');
+
 if (session_status() === PHP_SESSION_NONE) {
     session_set_cookie_params([
         'lifetime' => 86400,
         'path'     => '/',
-        'secure'   => isset($_SERVER['HTTPS']),
+        'secure'   => !$imsIsLocal,
         'httponly' => true,
         'samesite' => 'Strict',
     ]);
     session_start();
 }
 
-// ── CSRF token ───────────────────────────────────────────────
 if (empty($_SESSION['ims_csrf'])) {
     $_SESSION['ims_csrf'] = bin2hex(random_bytes(32));
 }
 
-// ── Database connection ───────────────────────────────────────
 function getDB() {
     static $pdo = null;
     if ($pdo === null) {
@@ -54,13 +66,14 @@ function getDB() {
                 PDO::ATTR_EMULATE_PREPARES   => false,
             ]);
         } catch (PDOException $e) {
-            jsonOut(['ok' => false, 'error' => 'DB connection failed: ' . $e->getMessage()], 500);
+            header('Content-Type: application/json');
+            http_response_code(500);
+            die(json_encode(['ok' => false, 'error' => 'DB connection failed']));
         }
     }
     return $pdo;
 }
 
-// ── JSON response ─────────────────────────────────────────────
 function jsonOut($data, $code = 200) {
     http_response_code($code);
     header('Content-Type: application/json');
@@ -68,7 +81,6 @@ function jsonOut($data, $code = 200) {
     exit;
 }
 
-// ── Auth check ────────────────────────────────────────────────
 function requireAuth() {
     if (empty($_SESSION['ims_admin_id'])) {
         jsonOut(['ok' => false, 'error' => 'Not authenticated'], 401);
@@ -76,7 +88,6 @@ function requireAuth() {
     return $_SESSION;
 }
 
-// ── CSRF check ────────────────────────────────────────────────
 function requireCsrf() {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') return;
     if (empty($_SESSION['ims_csrf'])) {
@@ -88,7 +99,6 @@ function requireCsrf() {
     }
 }
 
-// ── Audit log ─────────────────────────────────────────────────
 function auditLog($action, $details, $by = null) {
     try {
         $db  = getDB();
@@ -98,51 +108,9 @@ function auditLog($action, $details, $by = null) {
     } catch (Exception $e) {}
 }
 
-// ── Sync subscription statuses ────────────────────────────────
 function syncSubscriptionStatuses() {
     try {
         $db = getDB();
-        $db->exec("
-            UPDATE ims_subscriptions
-            SET status = 'expired'
-            WHERE expiry_date < CURDATE()
-              AND status NOT IN ('suspended','expired')
-        ");
-        $db->exec("
-            UPDATE ims_clients c
-            JOIN (
-                SELECT s1.client_id, s1.status
-                FROM ims_subscriptions s1
-                INNER JOIN (
-                    SELECT client_id, MAX(expiry_date) AS max_expiry
-                    FROM ims_subscriptions
-                    GROUP BY client_id
-                ) latest ON s1.client_id = latest.client_id
-                         AND s1.expiry_date = latest.max_expiry
-            ) sub_status ON sub_status.client_id = c.id
-            SET c.status = sub_status.status
-            WHERE c.status != 'suspended'
-        ");
+        $db->exec("UPDATE ims_subscriptions SET status = 'expired' WHERE expiry_date < CURDATE() AND status NOT IN ('suspended','expired')");
     } catch (Exception $e) {}
 }
-
-// ── CORS ──────────────────────────────────────────────────────
-$origin  = $_SERVER['HTTP_ORIGIN'] ?? '';
-$allowed = in_array($origin, [
-              'http://localhost',
-              'http://127.0.0.1',
-              'http://localhost:80',
-              'http://localhost:3000',
-           ])
-        || preg_match('/^https?:\/\/localhost(:\d+)?$/', $origin)
-        || preg_match('/^https?:\/\/.*\.railway\.app$/', $origin)
-        || preg_match('/^https?:\/\/[a-z0-9\-]+(\.[a-z0-9\-]+)*\.barms\.rw$/', $origin)
-        || preg_match('/^https?:\/\/[a-z0-9\-]+(\.[a-z0-9\-]+)*\.barms\.co\.rw$/', $origin);
-
-if ($origin && $allowed) {
-    header('Access-Control-Allow-Origin: ' . $origin);
-    header('Access-Control-Allow-Credentials: true');
-}
-header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, X-CSRF-Token, Authorization');
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { exit(0); }

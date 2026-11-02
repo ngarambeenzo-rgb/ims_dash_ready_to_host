@@ -4,6 +4,7 @@
 ═══════════════════════════════════════════════════ */
 
 const PAGE_TITLES = {
+  support:       { en: 'Support inbox', fr: 'Messages d\'assistance' },
   dashboard:     { en: 'Dashboard', fr: 'Tableau de bord' },
   clients:       { en: 'Clients', fr: 'Clients' },
   subscriptions: { en: 'Subscriptions', fr: 'Abonnements' },
@@ -48,6 +49,7 @@ function showPage(page) {
     reports:       loadReports,
     auditlog:      loadAuditLog,
     settings:      loadSettings,
+    support:       loadSupportInbox,
   };
   if (loaders[page]) loaders[page]();
 }
