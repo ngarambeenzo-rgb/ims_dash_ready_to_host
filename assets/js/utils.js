@@ -8,11 +8,12 @@ const DICT = {
   en: {
     dashboard:'Dashboard', clients:'Clients', subscriptions:'Subscriptions',
     payments:'Payments', devices:'Devices', licenses:'Licenses',
-    products:'Products', clientMap:'Client Map', auditLog:'Audit Log',
-    settings:'Settings', logout:'Logout', signIn:'Sign In →',
+    products:'Products & updates', clientMap:'Client map', auditLog:'Audit log',
+    settings:'Settings', logout:'Sign out', signIn:'Sign in', signInTitle:'Sign in',
+    controlCenter:'Control center', support:'Support inbox', reports:'Reports',
     username:'Username', password:'Password',
-    invalidCredentials:'Invalid credentials. Try again.',
-    main:'Main', control:'Control', system:'System',
+    invalidCredentials:'Wrong username or password. Try again.',
+    main:'Main', control:'Manage', system:'System',
     addClient:'Add Client', recordPayment:'Record Payment',
     approve:'Approve', block:'Block', revoke:'Revoke', renew:'Renew',
     suspend:'Suspend', activate:'Activate', edit:'Edit', delete:'Delete',
@@ -24,12 +25,13 @@ const DICT = {
   },
   fr: {
     dashboard:'Tableau de bord', clients:'Clients', subscriptions:'Abonnements',
-    payments:'Paiements', devices:'Appareils', licenses:'Licences',
+    payments:'Paiements', devices:'Appareils', licenses:'Licenses',
     products:'Produits', clientMap:'Carte Clients', auditLog:'Journal d\'audit',
-    settings:'Paramètres', logout:'Déconnexion', signIn:'Se connecter →',
+    settings:'Paramètres', logout:'Se déconnecter', signIn:'Se connecter', signInTitle:'Connexion',
+    controlCenter:'Centre de contrôle', support:'Messagerie support', reports:'Rapports',
     username:'Nom d\'utilisateur', password:'Mot de passe',
     invalidCredentials:'Identifiants invalides. Réessayez.',
-    main:'Principal', control:'Contrôle', system:'Système',
+    main:'Principal', control:'Gestion', system:'Système',
     addClient:'Ajouter Client', recordPayment:'Enregistrer Paiement',
     approve:'Approuver', block:'Bloquer', revoke:'Révoquer', renew:'Renouveler',
     suspend:'Suspendre', activate:'Activer', edit:'Modifier', delete:'Supprimer',
@@ -53,8 +55,8 @@ function applyLanguage() {
   });
   const lb = document.getElementById('langBtn');
   const tlb = document.getElementById('topLangBtn');
-  if (lb) lb.textContent = currentLang === 'en' ? '🇫🇷 Français' : '🇬🇧 English';
-  if (tlb) tlb.textContent = currentLang === 'en' ? '🇫🇷 FR' : '🇬🇧 EN';
+  if (lb) lb.textContent = currentLang === 'en' ? 'Français' : 'English';
+  if (tlb) tlb.textContent = currentLang === 'en' ? 'FR' : 'EN';
 }
 
 function toggleLang() {
@@ -85,7 +87,7 @@ function closeModal() {
 }
 
 function confirm2(msg, cb) {
-  openModal('Confirm', `<p style="font-size:14px;line-height:1.6">${msg}</p>`,
+  openModal('Please confirm', `<p style="font-size:14px;line-height:1.6">${msg}</p>`,
     `<button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
      <button class="btn btn-red" onclick="closeModal();(${cb.toString()})()">Confirm</button>`
   );
@@ -105,16 +107,17 @@ function fmtDaysLeft(expiryDate) {
 
 function statusBadge(status) {
   const map = {
-    active:    '<span class="badge badge-green">✅ Active</span>',
-    expired:   '<span class="badge badge-red">⌛ Expired</span>',
-    trial:     '<span class="badge badge-blue">🔵 Trial</span>',
-    suspended: '<span class="badge badge-gray">⛔ Suspended</span>',
-    pending:   '<span class="badge badge-orange">⏳ Pending</span>',
-    approved:  '<span class="badge badge-green">✅ Approved</span>',
-    blocked:   '<span class="badge badge-red">🚫 Blocked</span>',
-    revoked:   '<span class="badge badge-red">🚫 Revoked</span>',
+    active:    ['green',  'Active'],
+    expired:   ['red',    'Expired'],
+    trial:     ['blue',   'Trial'],
+    suspended: ['gray',   'Suspended'],
+    pending:   ['orange', 'Pending'],
+    approved:  ['green',  'Approved'],
+    blocked:   ['red',    'Blocked'],
+    revoked:   ['red',    'Revoked'],
   };
-  return map[status] || `<span class="badge badge-gray">${status}</span>`;
+  const m = map[status];
+  return m ? `<span class="badge badge-${m[0]}">${m[1]}</span>` : `<span class="badge badge-gray">${esc(status)}</span>`;
 }
 
 function esc(str) {
@@ -122,8 +125,6 @@ function esc(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-// ── Alerts panel ──────────────────────────────────
-function toggleAlerts() {
-  const panel = document.getElementById('alertPanel');
-  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-}
+
+// Inline icon from the sprite in index.php
+function ico(name, cls) { return '<svg class="ic ic-sm' + (cls ? ' ' + cls : '') + '"><use href="#i-' + name + '"/></svg>'; }

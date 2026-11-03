@@ -33,8 +33,8 @@ function renderSubs(tab) {
       <td>${statusBadge(s.status)}</td>
       <td>
         <div style="display:flex;gap:4px">
-          <button class="btn btn-green btn-sm" onclick="showRenewSubscription(${s.clientId})">🔄 Renew</button>
-          <button class="btn btn-ghost btn-sm" onclick="editSubscription(${s.id})">✏️ Edit</button>
+          <button class="btn btn-green btn-sm" onclick="showRenewSubscription(${s.clientId})">Renew</button>
+          <button class="btn btn-ghost btn-sm" onclick="editSubscription(${s.id})">Edit</button>
         </div>
       </td>
     </tr>`).join('');
@@ -70,7 +70,7 @@ async function saveEditSubscription(id) {
   const res = await api('subscriptions', 'edit', data);
   if (!res.ok) { toast(res.error || 'Error', 'error'); return; }
   closeModal();
-  toast('Subscription updated ✅');
+  toast('Subscription updated');
   loadSubscriptions();
 }
 
@@ -96,6 +96,6 @@ async function saveNewPlan() {
   const res = await api('subscriptions', 'add_plan', data);
   if (!res.ok) { toast(res.error || 'Error', 'error'); return; }
   closeModal();
-  toast('Plan added ✅');
+  toast('Plan added');
   loadSubscriptions();
 }

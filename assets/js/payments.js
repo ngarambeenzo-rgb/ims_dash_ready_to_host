@@ -54,9 +54,9 @@ function filterPayments(q) {
   renderPayments(filtered);
 }
 
-function showRecordPayment() {
-  openModal('💰 Record Payment',
-    `<div class="alert alert-green"><span>✅</span><div>Recording a payment will automatically renew the client subscription and issue a new license.</div></div>
+function showRecordPayment(clientId = null) {
+  openModal('Record Payment',
+    `<div class="alert alert-green"><div>Recording a payment will automatically renew the client subscription and issue a new license.</div></div>
     <div class="form-group"><label class="form-label">Client *</label><select class="form-input" id="payClient"></select></div>
     <div class="form-row cols-2">
       <div class="form-group"><label class="form-label">Amount (RWF) *</label><input type="number" inputmode="numeric" class="form-input" id="payAmount" placeholder="15000"/></div>
@@ -74,10 +74,10 @@ function showRecordPayment() {
     </div>
     <div class="form-group"><label class="form-label">Notes (optional)</label><input type="text" class="form-input" id="payNotes" placeholder="e.g. Paid via MoMo code 123456"/></div>`,
     `<button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
-     <button class="btn btn-green" onclick="savePayment()">💰 Record &amp; Activate</button>`
+     <button class="btn btn-green" onclick="savePayment()">Record &amp; Activate</button>`
   );
   // Use the shared helpers from clients.js / subscriptions.js context
-  _loadClientSelectOptions('payClient');
+  _loadClientSelectOptions('payClient', clientId);
   _loadPlanSelectOptions('payPlan', null, amt => {
     const el = document.getElementById('payAmount');
     if (el) el.value = amt;
@@ -97,6 +97,6 @@ async function savePayment() {
   const res = await api('payments', 'record', data);
   if (!res.ok) { toast(res.error || 'Error', 'error'); return; }
   closeModal();
-  toast('Payment recorded! License issued automatically ✅');
+  toast('Payment recorded! License issued automatically');
   loadPayments();
 }

@@ -23,8 +23,9 @@ if ($action === 'add') {
     $body = json_decode(file_get_contents('php://input'), true);
     $name = trim($body['name'] ?? '');
     if (!$name) jsonOut(['ok' => false, 'error' => 'Name required'], 400);
-    $db->prepare('INSERT INTO ims_products (name, icon, description, current_version) VALUES (?,?,?,?)')
-       ->execute([$name, $body['icon'] ?? '📦', $body['description'] ?? '', $body['currentVersion'] ?? '1.0.0']);
+    $kind = in_array($body['kind'] ?? 'app', ['app','website','api','other'], true) ? $body['kind'] : 'app';
+    $db->prepare('INSERT INTO ims_products (name, icon, description, current_version, kind) VALUES (?,?,?,?,?)')
+       ->execute([$name, $body['icon'] ?? '📦', $body['description'] ?? '', $body['currentVersion'] ?? '1.0.0', $kind]);
     auditLog('PRODUCT_ADD', "Added product: $name");
     jsonOut(['ok' => true, 'id' => (int)$db->lastInsertId()]);
 }
@@ -32,8 +33,9 @@ if ($action === 'add') {
 if ($action === 'edit') {
     $body = json_decode(file_get_contents('php://input'), true);
     $id   = (int)($body['id'] ?? 0);
-    $db->prepare('UPDATE ims_products SET name=?, icon=?, description=?, current_version=? WHERE id=?')
-       ->execute([$body['name'] ?? '', $body['icon'] ?? '📦', $body['description'] ?? '', $body['currentVersion'] ?? '1.0.0', $id]);
+    $kind = in_array($body['kind'] ?? 'app', ['app','website','api','other'], true) ? $body['kind'] : 'app';
+    $db->prepare('UPDATE ims_products SET name=?, icon=?, description=?, current_version=?, kind=? WHERE id=?')
+       ->execute([$body['name'] ?? '', $body['icon'] ?? '📦', $body['description'] ?? '', $body['currentVersion'] ?? '1.0.0', $kind, $id]);
     auditLog('PRODUCT_EDIT', "Edited product ID: $id");
     jsonOut(['ok' => true]);
 }

@@ -1,92 +1,107 @@
 <div id="page-dashboard" class="page" style="display:none">
 
+  <!-- NEEDS ATTENTION: the things that lock a bar out or leave a client waiting -->
+  <section class="attn" aria-labelledby="attnTitle">
+    <div class="attn-head">
+      <div>
+        <h3 id="attnTitle"><svg class="ic"><use href="#i-warn"/></svg>Needs attention</h3>
+        
+      </div>
+      <div class="attn-refresh">
+        <span id="attnUpdated"></span>
+        <button class="btn btn-ghost btn-sm" onclick="loadDashboard()"><svg class="ic ic-sm"><use href="#i-refresh"/></svg>Refresh</button>
+      </div>
+    </div>
+    <div class="attn-sum" id="attnSummary">Checking…</div>
+    <div class="attn-grid">
+      <button class="attn-cell" id="attnDevices" onclick="showPage('devices')"><span class="attn-ic"><svg class="ic"><use href="#i-devices"/></svg></span>
+        <span class="attn-count" id="attnDevicesN">–</span>
+        <span class="attn-name">Devices to approve</span>
+        <span class="attn-hint">A new phone or PC can't sell until you approve it</span>
+      </button>
+      <button class="attn-cell" id="attnExpiring" onclick="showPage('subscriptions')"><span class="attn-ic"><svg class="ic"><use href="#i-subs"/></svg></span>
+        <span class="attn-count" id="attnExpiringN">–</span>
+        <span class="attn-name">Ending within 7 days</span>
+        <span class="attn-hint">Record a payment before the app locks</span>
+      </button>
+      <button class="attn-cell" id="attnExpired" onclick="showPage('subscriptions')"><span class="attn-ic"><svg class="ic"><use href="#i-ban"/></svg></span>
+        <span class="attn-count" id="attnExpiredN">–</span>
+        <span class="attn-name">Locked, subscription expired</span>
+        <span class="attn-hint">Access returns when you record a payment</span>
+      </button>
+      <button class="attn-cell" id="attnMessages" onclick="showPage('support')"><span class="attn-ic"><svg class="ic"><use href="#i-support"/></svg></span>
+        <span class="attn-count" id="attnMessagesN">–</span>
+        <span class="attn-name">New support messages</span>
+        <span class="attn-hint">Bar owners waiting for a reply</span>
+      </button>
+    </div>
+    <div class="attn-list" id="attnList" style="display:none"></div>
+  </section>
+
   <!-- KPI GRID -->
   <div class="kpi-grid">
-    <div class="kpi green">
-      <div class="kpi-icon">🏢</div>
-      <div class="kpi-label">Total Clients</div>
-      <div class="kpi-value" id="kpiTotalClients">—</div>
-      <div class="kpi-change up" id="kpiClientsChange">+0% this month</div>
+    <div class="kpi green"><div class="kpi-icon"><svg class="ic"><use href="#i-clients"/></svg></div>
+      <div class="kpi-label">Clients</div>
+      <div class="kpi-value" id="kpiTotalClients">–</div>
+      <div class="kpi-change" id="kpiClientsChange"></div>
     </div>
-    <div class="kpi blue">
-      <div class="kpi-icon">📋</div>
-      <div class="kpi-label">Active Subscriptions</div>
-      <div class="kpi-value" id="kpiActiveClients">—</div>
-      <div class="kpi-change up" id="kpiSubsChange">+0% this month</div>
+    <div class="kpi blue"><div class="kpi-icon"><svg class="ic"><use href="#i-subs"/></svg></div>
+      <div class="kpi-label">Active subscriptions</div>
+      <div class="kpi-value" id="kpiActiveClients">–</div>
+      <div class="kpi-change" id="kpiSubsChange"></div>
     </div>
-    <div class="kpi purple">
-      <div class="kpi-icon">📱</div>
-      <div class="kpi-label">Registered Devices</div>
-      <div class="kpi-value" id="kpiDevices">—</div>
-      <div class="kpi-change up" id="kpiDevicesChange">+0% this month</div>
+    <div class="kpi purple"><div class="kpi-icon"><svg class="ic"><use href="#i-devices"/></svg></div>
+      <div class="kpi-label">Approved devices</div>
+      <div class="kpi-value" id="kpiDevices">–</div>
+      <div class="kpi-change" id="kpiDevicesChange"></div>
     </div>
-    <div class="kpi gold">
-      <div class="kpi-icon">💰</div>
-      <div class="kpi-label">Monthly Revenue</div>
-      <div class="kpi-value" id="kpiRevenue" style="font-size:20px">RWF 0</div>
-      <div class="kpi-change up" id="kpiRevenueChange">+0% this month</div>
+    <div class="kpi gold"><div class="kpi-icon"><svg class="ic"><use href="#i-payments"/></svg></div>
+      <div class="kpi-label">Revenue this month</div>
+      <div class="kpi-value" id="kpiRevenue">RWF 0</div>
+      <div class="kpi-change" id="kpiRevenueChange"></div>
     </div>
   </div>
 
-  <!-- ROW 2: Subscription Overview + Revenue Chart + Map -->
-  <div style="display:grid;grid-template-columns:320px 1fr 340px;gap:16px;margin-bottom:16px">
-
-    <!-- Subscription Overview (Donut) -->
-    <div class="card">
+  <!-- ROW 2: subscriptions, revenue, map -->
+  <div class="dash-row dash-r2">
+    <div class="card c-purple">
       <div class="card-header">
-        <div>
-          <div class="card-title">Subscription Overview</div>
-        </div>
-        <select class="form-input btn-sm" style="width:110px;min-height:28px;font-size:11px" id="subPeriodFilter">
-          <option>This Month</option>
-          <option>This Year</option>
-          <option>All Time</option>
-        </select>
+        <div class="card-title"><svg class="ic"><use href="#i-subs"/></svg>Subscriptions by plan</div>
       </div>
       <div class="donut-wrap">
-        <div style="position:relative;width:110px;height:110px;flex-shrink:0">
-          <canvas id="donutChart" width="110" height="110"></canvas>
-          <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center">
-            <div style="font-size:22px;font-weight:800;color:var(--text)" id="donutTotal">0</div>
-            <div style="font-size:9px;color:var(--muted)">Active Total</div>
-          </div>
+        <div style="position:relative;width:120px;height:120px;flex-shrink:0">
+          <canvas id="donutChart" width="120" height="120"></canvas>
+          <div class="donut-center"><b id="donutTotal">0</b><span>Active</span></div>
         </div>
         <div class="donut-legend" id="donutLegend">
-          <div class="donut-item"><div class="donut-item-left"><div class="donut-dot" style="background:var(--blue)"></div><span class="donut-label">Trial</span></div><div style="display:flex;gap:6px;align-items:center"><span class="donut-count" id="dlTrial">0</span><span class="donut-pct" id="dpTrial">(0%)</span><span class="donut-arrow">›</span></div></div>
-          <div class="donut-item"><div class="donut-item-left"><div class="donut-dot" style="background:var(--green)"></div><span class="donut-label">Monthly</span></div><div style="display:flex;gap:6px;align-items:center"><span class="donut-count" id="dlMonthly">0</span><span class="donut-pct" id="dpMonthly">(0%)</span><span class="donut-arrow">›</span></div></div>
-          <div class="donut-item"><div class="donut-item-left"><div class="donut-dot" style="background:var(--gold)"></div><span class="donut-label">Annual</span></div><div style="display:flex;gap:6px;align-items:center"><span class="donut-count" id="dlAnnual">0</span><span class="donut-pct" id="dpAnnual">(0%)</span><span class="donut-arrow">›</span></div></div>
-          <div class="donut-item"><div class="donut-item-left"><div class="donut-dot" style="background:var(--red)"></div><span class="donut-label">Expired</span></div><div style="display:flex;gap:6px;align-items:center"><span class="donut-count" id="dlExpired">0</span><span class="donut-pct" id="dpExpired">(0%)</span><span class="donut-arrow">›</span></div></div>
+          <div class="donut-item"><div class="donut-item-left"><div class="donut-dot" style="background:#5ea2ff"></div><span class="donut-label">Trial</span></div><div class="flex gap-8"><span class="donut-count" id="dlTrial">0</span><span class="donut-pct" id="dpTrial">0%</span></div></div>
+          <div class="donut-item"><div class="donut-item-left"><div class="donut-dot" style="background:#34d399"></div><span class="donut-label">Monthly</span></div><div class="flex gap-8"><span class="donut-count" id="dlMonthly">0</span><span class="donut-pct" id="dpMonthly">0%</span></div></div>
+          <div class="donut-item"><div class="donut-item-left"><div class="donut-dot" style="background:#fbbf24"></div><span class="donut-label">Annual</span></div><div class="flex gap-8"><span class="donut-count" id="dlAnnual">0</span><span class="donut-pct" id="dpAnnual">0%</span></div></div>
+          <div class="donut-item"><div class="donut-item-left"><div class="donut-dot" style="background:#fb7185"></div><span class="donut-label">Expired</span></div><div class="flex gap-8"><span class="donut-count" id="dlExpired">0</span><span class="donut-pct" id="dpExpired">0%</span></div></div>
         </div>
       </div>
-      <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
-        <span class="view-all" onclick="showPage('subscriptions')">View full report →</span>
+      <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+        <span class="view-all" onclick="showPage('subscriptions')">All subscriptions</span>
       </div>
     </div>
 
-    <!-- Revenue Analytics Chart -->
-    <div class="card">
+    <div class="card c-cyan">
       <div class="card-header">
-        <div>
-          <div class="card-title">Revenue Analytics</div>
-        </div>
-        <div style="display:flex;gap:6px">
-          <select class="form-input btn-sm" style="width:110px;min-height:28px;font-size:11px"><option>This Month</option><option>This Year</option></select>
-          <select class="form-input btn-sm" style="width:80px;min-height:28px;font-size:11px"><option>Daily</option><option>Weekly</option></select>
-        </div>
+        <div><div class="card-title"><svg class="ic"><use href="#i-chart"/></svg>Revenue, last 30 days</div></div>
+        <span class="view-all" onclick="showPage('reports')">Reports</span>
       </div>
-      <div class="chart-container" style="height:150px">
+      <div class="chart-container">
         <canvas id="revenueChart"></canvas>
       </div>
     </div>
 
-    <!-- Live Map -->
-    <div class="card" style="padding:14px">
+    <div class="card">
       <div class="card-header" style="margin-bottom:10px">
-        <div class="card-title">Live Map Overview</div>
-        <select class="form-input btn-sm" style="width:120px;min-height:28px;font-size:11px"><option>All Locations</option></select>
+        <div class="card-title"><svg class="ic"><use href="#i-map"/></svg>Where clients are</div>
+        <span class="view-all" onclick="showPage('map')">Open map</span>
       </div>
-      <div id="dashMapContainer" style="height:180px;border-radius:8px;overflow:hidden;background:var(--card2)"></div>
-      <div class="map-legend" style="margin-top:8px">
+      <div id="dashMapContainer" style="height:170px;border-radius:8px;overflow:hidden;background:var(--card2)"></div>
+      <div class="map-legend">
         <div class="map-legend-item"><div class="map-legend-dot" style="background:var(--green)"></div><span>Active <strong id="mapActiveCount" style="color:var(--text)">0</strong></span></div>
         <div class="map-legend-item"><div class="map-legend-dot" style="background:var(--blue)"></div><span>Trial <strong id="mapTrialCount" style="color:var(--text)">0</strong></span></div>
         <div class="map-legend-item"><div class="map-legend-dot" style="background:var(--red)"></div><span>Expired <strong id="mapExpiredCount" style="color:var(--text)">0</strong></span></div>
@@ -94,96 +109,85 @@
     </div>
   </div>
 
-  <!-- ROW 3: Recent Subscriptions + Device Status + Recent Alerts -->
-  <div style="display:grid;grid-template-columns:1fr 260px 280px;gap:16px;margin-bottom:16px">
-
-    <!-- Recent Subscriptions -->
-    <div class="card">
+  <!-- ROW 3: recent subscriptions, device status, product updates -->
+  <div class="dash-row dash-r3">
+    <div class="card c-teal">
       <div class="card-header">
-        <div class="card-title">Recent Subscriptions</div>
-        <span class="view-all" onclick="showPage('subscriptions')">View All</span>
+        <div class="card-title"><svg class="ic"><use href="#i-clients"/></svg>Recent subscriptions</div>
+        <span class="view-all" onclick="showPage('subscriptions')">View all</span>
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Client / Business</th><th>Plan</th><th>Devices</th><th>Status</th><th>Next Payment</th><th>Amount</th><th></th></tr></thead>
+          <thead><tr><th>Client</th><th>Plan</th><th>Status</th><th>Next payment</th><th>Amount</th></tr></thead>
           <tbody id="dashRecentSubs">
-            <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">No subscriptions yet</td></tr>
+            <tr><td colspan="5" class="td-muted" style="text-align:center;padding:24px">No subscriptions yet</td></tr>
           </tbody>
         </table>
       </div>
     </div>
 
-    <!-- Device Status Donut -->
-    <div class="card">
+    <div class="card c-blue">
       <div class="card-header">
-        <div class="card-title">Device Status</div>
-        <span class="view-all" onclick="showPage('devices')">View All →</span>
+        <div class="card-title"><svg class="ic"><use href="#i-devices"/></svg>Devices</div>
+        <span class="view-all" onclick="showPage('devices')">View all</span>
       </div>
-      <div style="display:flex;justify-content:center;margin:10px 0;position:relative">
-        <canvas id="deviceDonut" width="120" height="120"></canvas>
-        <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center">
-          <div style="font-size:20px;font-weight:800;color:var(--text)" id="deviceDonutTotal">0</div>
-          <div style="font-size:9px;color:var(--muted)">Total</div>
+      <div style="display:flex;justify-content:center;margin:6px 0 14px;position:relative">
+        <div style="position:relative;width:120px;height:120px">
+          <canvas id="deviceDonut" width="120" height="120"></canvas>
+          <div class="donut-center"><b id="deviceDonutTotal">0</b><span>Total</span></div>
         </div>
       </div>
-      <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px">
-        <div class="flex-between"><div class="flex gap-8"><div class="dot dot-green"></div><span style="font-size:11px;color:var(--muted)">Active</span></div><span style="font-size:12px;font-weight:700;color:var(--green)" id="devActive">0</span></div>
-        <div class="flex-between"><div class="flex gap-8"><div class="dot dot-orange"></div><span style="font-size:11px;color:var(--muted)">Pending</span></div><span style="font-size:12px;font-weight:700;color:var(--orange)" id="devPending">0</span></div>
-        <div class="flex-between"><div class="flex gap-8"><div class="dot dot-red"></div><span style="font-size:11px;color:var(--muted)">Blocked</span></div><span style="font-size:12px;font-weight:700;color:var(--red)" id="devBlocked">0</span></div>
+      <div style="display:flex;flex-direction:column;gap:9px">
+        <div class="flex-between"><div class="flex gap-8"><span class="dot dot-green"></span><span class="td-muted">Approved</span></div><b class="num" id="devActive">0</b></div>
+        <div class="flex-between"><div class="flex gap-8"><span class="dot dot-orange"></span><span class="td-muted">Waiting for approval</span></div><b class="num" id="devPending">0</b></div>
+        <div class="flex-between"><div class="flex gap-8"><span class="dot dot-red"></span><span class="td-muted">Blocked</span></div><b class="num" id="devBlocked">0</b></div>
       </div>
     </div>
 
-    <!-- Recent Alerts -->
-    <div class="card">
+    <div class="card c-gold">
       <div class="card-header">
-        <div class="card-title">Recent Alerts</div>
-        <span class="view-all" onclick="showPage('auditlog')">View All</span>
+        <div class="card-title"><svg class="ic"><use href="#i-package"/></svg>Product versions</div>
+        <span class="view-all" onclick="showPage('products')">View all</span>
       </div>
-      <div id="dashAlerts">
-        <div class="empty-state" style="padding:20px"><div class="icon" style="font-size:28px">✅</div><p>No alerts</p></div>
+      <div id="dashProducts">
+        <div class="empty-state" style="padding:20px">No products yet</div>
       </div>
     </div>
   </div>
 
-  <!-- ROW 4: Recent Payments + Product Updates + System Activity -->
-  <div style="display:grid;grid-template-columns:1fr 280px 300px;gap:16px">
-
-    <!-- Recent Payments -->
-    <div class="card">
+  <!-- ROW 4: recent payments, activity -->
+  <div class="dash-row dash-r4" style="margin-bottom:0">
+    <div class="card c-lime">
       <div class="card-header">
-        <div class="card-title">Recent Payments</div>
-        <span class="view-all" onclick="showPage('payments')">View All</span>
+        <div class="card-title"><svg class="ic"><use href="#i-payments"/></svg>Recent payments</div>
+        <span class="view-all" onclick="showPage('payments')">View all</span>
       </div>
       <div class="table-wrap">
         <table>
           <thead><tr><th>Client</th><th>Method</th><th>Amount</th><th>Date</th><th>Status</th></tr></thead>
           <tbody id="dashRecentPayments">
-            <tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">No payments yet</td></tr>
+            <tr><td colspan="5" class="td-muted" style="text-align:center;padding:20px">No payments yet</td></tr>
           </tbody>
         </table>
       </div>
     </div>
 
-    <!-- Product Updates -->
-    <div class="card">
+    <div class="card c-green">
       <div class="card-header">
-        <div class="card-title">Product Updates</div>
-        <span class="view-all" onclick="showPage('products')">View All</span>
+        <div class="card-title"><svg class="ic"><use href="#i-audit"/></svg>Latest activity</div>
+        <span class="view-all" onclick="showPage('auditlog')">Audit log</span>
       </div>
-      <div id="dashProducts">
-        <div class="empty-state" style="padding:20px"><div class="icon" style="font-size:28px">📦</div><p>No products</p></div>
+      <div id="dashActivity">
+        <div class="empty-state" style="padding:20px">No activity yet</div>
       </div>
     </div>
 
-    <!-- System Activity -->
-    <div class="card">
+    <div class="card c-orange">
       <div class="card-header">
-        <div class="card-title">System Activity</div>
-        <span class="view-all" onclick="showPage('auditlog')">View All</span>
+        <div class="card-title"><svg class="ic"><use href="#i-terminal"/></svg>snapshot.json</div>
+        <span class="view-all" onclick="copySnapshot()">Copy</span>
       </div>
-      <div id="dashActivity">
-        <div class="empty-state" style="padding:20px"><div class="icon" style="font-size:28px">📝</div><p>No activity yet</p></div>
-      </div>
+      <div class="json" id="dashSnapshot">{}</div>
     </div>
   </div>
 

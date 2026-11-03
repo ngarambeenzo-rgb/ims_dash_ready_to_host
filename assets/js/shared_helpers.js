@@ -66,3 +66,19 @@ async function _loadProductSelectOptions(selectId) {
     `<option value="${p.id}">${esc(p.name)}</option>`
   ).join('');
 }
+
+/**
+ * A readable name for a device. The product sends the browser's long
+ * user-agent text as the device name, so work out "Windows computer (Chrome)"
+ * or "Android phone (Chrome)" from it.
+ */
+function imsDeviceLabel(d) {
+  const raw = [d.deviceName || d.device_name, d.os, d.browser].filter(Boolean).join(' ');
+  if (raw && !/Mozilla\/|AppleWebKit/i.test(raw) && (d.deviceName || d.device_name)) return d.deviceName || d.device_name;
+  const ua = raw || (d.device_uuid || d.deviceUuid || '');
+  const os = /Android/i.test(ua) ? 'Android' : /iPhone|iPad|iOS/i.test(ua) ? 'iPhone/iPad' : /Windows/i.test(ua) ? 'Windows' : /Mac OS|Macintosh/i.test(ua) ? 'Mac' : /Linux/i.test(ua) ? 'Linux' : '';
+  const br = /Edg\//i.test(ua) ? 'Edge' : /OPR\/|Opera/i.test(ua) ? 'Opera' : /Chrome\//i.test(ua) ? 'Chrome' : /Firefox\//i.test(ua) ? 'Firefox' : /Safari\//i.test(ua) ? 'Safari' : '';
+  const kind = /Android|iPhone/i.test(ua) && !/Tablet|iPad/i.test(ua) ? 'phone' : /iPad|Tablet/i.test(ua) ? 'tablet' : os ? 'computer' : 'device';
+  const id = String(d.device_uuid || d.deviceUuid || '').slice(0, 4).toUpperCase();
+  return (os ? os + ' ' : '') + kind + (br ? ' (' + br + ')' : '') + (id ? ' · ' + id : '');
+}

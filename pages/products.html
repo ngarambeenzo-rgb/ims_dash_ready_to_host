@@ -1,7 +1,18 @@
 <div id="page-products" class="page" style="display:none">
   <div class="page-header">
-    <div><div class="page-title">📦 Products</div><div class="page-sub">Manage products and push updates to clients</div></div>
-    <button class="btn btn-primary" onclick="showAddProduct()">+ Add Product</button>
+    <div><div class="page-title">Products</div><div class="page-sub">Everything we make: apps, websites and APIs. Register each place one runs, and we control it from here.</div></div>
+    <button class="btn btn-primary" onclick="showAddProduct()">Add product</button>
   </div>
   <div id="productsGrid" class="grid-2"></div>
+
+  <div class="card" style="margin-top:14px">
+    <div class="card-header">
+      <div class="card-title">Where our products run (deployments)</div>
+      <button class="btn btn-primary btn-sm" onclick="showAddDeployment()">Register a website or app</button>
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Name</th><th>Client</th><th>Product</th><th>Address</th><th>Health</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody id="deployTable"><tr><td colspan="7" class="td-muted" style="text-align:center;padding:24px">Loading…</td></tr></tbody>
+    </table></div>
+  </div>
 </div>

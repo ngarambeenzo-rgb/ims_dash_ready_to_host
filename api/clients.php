@@ -5,6 +5,22 @@ requireAuth();
 $db = getDB();
 $action = $_REQUEST['action'] ?? 'list';
 
+// Saves the map position and tracking settings that come with the client form.
+function _saveClientGeo($db, $id, $body) {
+    if (!$id) return;
+    $lat = isset($body['lat']) && $body['lat'] !== '' ? (float)$body['lat'] : null;
+    $lng = isset($body['lng']) && $body['lng'] !== '' ? (float)$body['lng'] : null;
+    if ($lat !== null && $lng !== null && abs($lat) <= 90 && abs($lng) <= 180) {
+        $db->prepare('UPDATE ims_clients SET lat=?, lng=?, geo_source=? WHERE id=?')->execute([$lat, $lng, $body['geoSource'] ?? 'manual', $id]);
+    } elseif (array_key_exists('lat', $body) && $body['lat'] === '' ) {
+        $db->prepare('UPDATE ims_clients SET lat=NULL, lng=NULL, geo_source=NULL WHERE id=?')->execute([$id]);
+    }
+    if (array_key_exists('trackingConsent', $body)) {
+        $away = max(1, min(500, (int)($body['awayKm'] ?? 2)));
+        $db->prepare('UPDATE ims_clients SET tracking_consent=?, away_km=? WHERE id=?')->execute([!empty($body['trackingConsent']) ? 1 : 0, $away, $id]);
+    }
+}
+
 if ($action === 'list') {
     $stmt = $db->query("
         SELECT c.*, p.name AS product_name,
@@ -66,6 +82,7 @@ if ($action === 'add') {
 
         $db->prepare('INSERT INTO ims_clients (business_name, location, contact_phone, contact_email, product_id, status, activation_key) VALUES (?,?,?,?,?,?,?)')
            ->execute([$name, $body['location'] ?? '', $body['contactPhone'] ?? '', $body['contactEmail'] ?? '', $productId, $status, $activationKey]);
+        _saveClientGeo($db, (int)$db->lastInsertId(), $body);
         $clientId = (int)$db->lastInsertId();
 
         $db->prepare('INSERT INTO ims_subscriptions (client_id, plan_id, max_devices, start_date, expiry_date, status) VALUES (?,?,?,?,?,?)')
@@ -87,6 +104,7 @@ if ($action === 'edit') {
 
     $db->prepare('UPDATE ims_clients SET business_name=?, location=?, contact_phone=?, contact_email=? WHERE id=?')
        ->execute([$body['businessName'] ?? '', $body['location'] ?? '', $body['contactPhone'] ?? '', $body['contactEmail'] ?? '', $id]);
+    _saveClientGeo($db, $id, $body);
 
     if (!empty($body['maxDevices'])) {
         // FIX: MySQL does not support ORDER BY + LIMIT in UPDATE with subquery —

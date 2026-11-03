@@ -23,22 +23,22 @@ function renderDevices(tab) {
   const filtered = tab === 'all' ? _allDevices : _allDevices.filter(d => d.status === tab);
   const tbody = document.getElementById('devicesTable');
   if (!filtered.length) {
-    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px">No ${tab} devices</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px">${({pending:'No devices are waiting. A new phone or PC appears here when a client signs in on it.',approved:'No approved devices yet.',blocked:'No blocked devices.',all:'No devices yet.'})[tab] || 'No devices.'}</td></tr>`;
     return;
   }
   tbody.innerHTML = filtered.map(d => `
     <tr>
-      <td><code style="font-size:11px;background:#f3f4f6;padding:2px 6px;border-radius:4px">${esc((d.deviceUuid || '').substring(0,12))}...</code></td>
+      <td><code class="key-chip">${esc((d.deviceUuid || '').substring(0,12))}...</code></td>
       <td><strong>${esc(d.clientName)}</strong></td>
-      <td>${esc(d.deviceName || d.deviceType || 'Unknown')}<br><span style="font-size:11px;color:var(--muted)">${esc(d.os || '')} ${esc(d.browser || '')}</span></td>
+      <td>${esc(imsDeviceLabel(d))}<br><span style="font-size:11px;color:var(--muted)">${esc(d.os || '')} ${esc(d.browser || '')}</span></td>
       <td>${fmtDate(d.firstSeen)}</td>
       <td>${d.lastSync ? fmtDateTime(d.lastSync) : '<span style="color:var(--muted)">Never</span>'}</td>
       <td>${statusBadge(d.status)}</td>
       <td>
         <div style="display:flex;gap:4px">
-          ${d.status === 'pending' ? `<button class="btn btn-green btn-sm" onclick="approveDevice(${d.id})">✅ Approve</button>` : ''}
-          ${d.status === 'approved' ? `<button class="btn btn-ghost btn-sm" onclick="blockDevice(${d.id})">🚫 Block</button>` : ''}
-          ${d.status === 'blocked' ? `<button class="btn btn-green btn-sm" onclick="approveDevice(${d.id})">✅ Unblock</button>` : ''}
+          ${d.status === 'pending' ? `<button class="btn btn-green btn-sm" onclick="approveDevice(${d.id})">Approve</button>` : ''}
+          ${d.status === 'approved' ? `<button class="btn btn-ghost btn-sm" onclick="blockDevice(${d.id})">Block</button>` : ''}
+          ${d.status === 'blocked' ? `<button class="btn btn-green btn-sm" onclick="approveDevice(${d.id})">Unblock</button>` : ''}
         </div>
       </td>
     </tr>`).join('');
@@ -54,7 +54,7 @@ function filterDevices(q) {
   const tbody = document.getElementById('devicesTable');
   tbody.innerHTML = filtered.length ? filtered.map(d => `
     <tr>
-      <td><code style="font-size:11px">${esc((d.deviceUuid||'').substring(0,12))}...</code></td>
+      <td><code class="key-chip">${esc((d.deviceUuid||'').substring(0,12))}...</code></td>
       <td><strong>${esc(d.clientName)}</strong></td>
       <td>${esc(d.deviceName || 'Unknown')}</td>
       <td>${fmtDate(d.firstSeen)}</td>
@@ -67,7 +67,7 @@ function filterDevices(q) {
 async function approveDevice(id) {
   const res = await api('devices', 'approve', { id });
   if (!res.ok) { toast(res.error || 'Error', 'error'); return; }
-  toast('Device approved ✅');
+  toast('Device approved');
   loadDevices();
 }
 
@@ -75,7 +75,7 @@ async function blockDevice(id) {
   confirm2('Block this device? It will be locked immediately on next sync.', async () => {
     const res = await api('devices', 'block', { id });
     if (!res.ok) { toast(res.error || 'Error', 'error'); return; }
-    toast('Device blocked 🚫');
+    toast('Device blocked');
     loadDevices();
   });
 }

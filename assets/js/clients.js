@@ -10,20 +10,19 @@ async function loadClients() {
 function renderClients(clients) {
   const tbody = document.getElementById('clientsTable');
   if (!clients.length) {
-    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:32px">No clients yet. Add your first client!</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:32px">No clients yet. Select Add client to create the first one.</td></tr>';
     return;
   }
   tbody.innerHTML = clients.map(c => `
     <tr>
-      <td><strong>${esc(c.businessName)}</strong><br><span style="font-size:11px;color:var(--muted)">${esc(c.location || '')}</span></td>
+      <td><strong>${esc(c.businessName)}</strong><br><span class="td-muted">${esc(c.location || '')}</span></td>
       <td>
         <div style="display:flex;align-items:center;gap:5px">
-          <span style="color:#bfdbfe;font-family:monospace;font-size:11px;font-weight:700;background:#1e3a8a;padding:4px 8px;border-radius:6px;border:1px solid #3b82f6;display:inline-block;white-space:nowrap">${c.activation_key || c.activationKey || '—'}</span>
-          <button style="background:#1e3a8a;border:1px solid #3b82f6;border-radius:6px;cursor:pointer;color:#bfdbfe;font-size:11px;padding:3px 7px;white-space:nowrap" onclick="copyActivationKey(this,'${c.activation_key || c.activationKey || ''}')">📋</button>
+          <span class="key-chip">${c.activation_key || c.activationKey || '—'}</span>
+          <button class="copy-btn" title="Copy key" onclick="copyActivationKey(this,'${c.activation_key || c.activationKey || ''}')">${ico('copy')}</button>
         </div>
       </td>
-      <td>${esc(c.contactPhone || '')}<br><span style="font-size:11px;color:var(--muted)">${esc(c.contactEmail || '')}</span></td>
-      <td><span class="badge badge-blue">${esc(c.productName || 'BarMS Pro')}</span></td>
+      <td>${esc(c.contactPhone || '')}<br><span class="td-muted">${esc(c.contactEmail || '')}</span></td>
       <td>${esc(c.planName || '—')}</td>
       <td>${c.activeDevices || 0}/${c.maxDevices || 0}</td>
       <td>${fmtDate(c.expiryDate)}</td>
@@ -31,10 +30,10 @@ function renderClients(clients) {
       <td>${statusBadge(c.status)}</td>
       <td>
         <div style="display:flex;gap:4px">
-          <button class="btn-icon" title="Edit" onclick="showEditClient(${c.id})">✏️</button>
-          <button class="btn-icon" title="Renew" onclick="showRenewClient(${c.id})">🔄</button>
-          <button class="btn-icon" title="Onboarding Card" onclick="showClientCard(${c.id})">🪪</button>
-          <button class="btn-icon" title="${c.status === 'suspended' ? 'Activate' : 'Suspend'}" onclick="${c.status === 'suspended' ? 'activateClient' : 'suspendClient'}(${c.id})">${c.status === 'suspended' ? '✅' : '⛔'}</button>
+          <button class="btn-icon" title="Edit" onclick="showEditClient(${c.id})">${ico('edit')}</button>
+          <button class="btn-icon" title="Renew" onclick="showRenewClient(${c.id})">${ico('refresh')}</button>
+          <button class="btn-icon" title="Onboarding Card" onclick="showClientCard(${c.id})">${ico('card')}</button>
+          <button class="btn-icon" title="${c.status === 'suspended' ? 'Activate' : 'Suspend'}" onclick="${c.status === 'suspended' ? 'activateClient' : 'suspendClient'}(${c.id})">${c.status === 'suspended' ? ico('play') : ico('ban')}</button>
         </div>
       </td>
     </tr>`).join('');
@@ -51,15 +50,15 @@ function fillKeyCells() {
       const wrap = document.createElement('div');
       wrap.style.cssText = 'display:flex;align-items:center;gap:6px';
       const span = document.createElement('span');
-      span.style.cssText = 'font-size:11px;background:#1e3a8a;color:#bfdbfe;padding:4px 10px;border-radius:6px;font-weight:700;letter-spacing:.06em;font-family:monospace;border:1px solid #3b82f6';
+      span.className = 'key-chip';
       span.textContent = key;
       const btn = document.createElement('button');
-      btn.style.cssText = 'background:#1e3a8a;border:1px solid #3b82f6;border-radius:6px;cursor:pointer;color:#bfdbfe;font-size:11px;padding:3px 8px';
-      btn.textContent = '📋';
+      btn.className = 'copy-btn';
+      btn.innerHTML = ico('copy');
       btn.onclick = () => {
         navigator.clipboard.writeText(key).then(() => {
-          btn.textContent = '✅';
-          setTimeout(() => btn.textContent = '📋', 2000);
+          btn.innerHTML = ico('check');
+          setTimeout(() => btn.innerHTML = ico('copy'), 2000);
           if (typeof toast === 'function') toast('Copied: ' + key);
         }).catch(() => prompt('Copy this key:', key));
       };
@@ -98,13 +97,15 @@ function showAddClient() {
       <div class="form-group"><label class="form-label">Subscription Plan *</label><select class="form-input" id="cPlan"></select></div>
       <div class="form-group"><label class="form-label">Max Devices *</label><input type="number" inputmode="numeric" class="form-input" id="cDevices" value="1" min="1"/></div>
       <div class="form-group"><label class="form-label">Subscription Start</label><input type="date" class="form-input" id="cStart" value="${new Date().toISOString().split('T')[0]}"/></div>
-    </div>`,
+    </div>
+    ${imsGeoFields('c', null)}`,
     `<button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
      <button class="btn btn-primary" onclick="saveNewClient()">Add Client</button>`
   );
   // FIX: was loadProductOptions/loadPlanOptions (duplicates) — now uses shared helpers
   _loadProductSelectOptions('cProduct');
   _loadPlanSelectOptions('cPlan');
+  imsGeoInit('c', null, 'cLocation');
 }
 
 async function saveNewClient() {
@@ -117,12 +118,13 @@ async function saveNewClient() {
     planId:       document.getElementById('cPlan').value,
     maxDevices:   parseInt(document.getElementById('cDevices').value) || 1,
     startDate:    document.getElementById('cStart').value,
+    ...imsGeoValues('c'),
   };
   if (!data.businessName || !data.productId || !data.planId) { toast('Fill required fields', 'error'); return; }
   const res = await api('clients', 'add', data);
   if (!res.ok) { toast(res.error || 'Error', 'error'); return; }
   closeModal();
-  toast('Client added successfully! ✅');
+  toast('Client added successfully!');
   loadClients();
 }
 
@@ -136,10 +138,12 @@ async function showEditClient(id) {
       <div class="form-group"><label class="form-label">Contact Phone</label><input type="tel" class="form-input" id="ecPhone" value="${esc(client.contactPhone || '')}"/></div>
       <div class="form-group"><label class="form-label">Contact Email</label><input type="email" class="form-input" id="ecEmail" value="${esc(client.contactEmail || '')}"/></div>
       <div class="form-group"><label class="form-label">Max Devices</label><input type="number" inputmode="numeric" class="form-input" id="ecDevices" value="${client.maxDevices || 1}" min="1"/></div>
-    </div>`,
+    </div>
+    ${imsGeoFields('ec', client)}`,
     `<button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
      <button class="btn btn-primary" onclick="saveEditClient(${id})">Save Changes</button>`
   );
+  imsGeoInit('ec', client, 'ecLocation');
 }
 
 async function saveEditClient(id) {
@@ -150,33 +154,34 @@ async function saveEditClient(id) {
     contactPhone: document.getElementById('ecPhone').value.trim(),
     contactEmail: document.getElementById('ecEmail').value.trim(),
     maxDevices:   parseInt(document.getElementById('ecDevices').value) || 1,
+    ...imsGeoValues('ec'),
   };
   const res = await api('clients', 'edit', data);
   if (!res.ok) { toast(res.error || 'Error', 'error'); return; }
   closeModal();
-  toast('Client updated ✅');
+  toast('Client updated');
   loadClients();
 }
 async function suspendClient(id) {
   const client = _allClients.find(c => c.id === id);
   const name = client?.businessName || '';
-  openModal('⛔ Suspend Client',
+  openModal('Suspend Client',
     `<p style="font-size:14px;line-height:1.6">Suspend <strong>${esc(name)}</strong>?<br>Their BarMS app will lock immediately on next sync.</p>`,
     `<button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
-     <button class="btn btn-red" onclick="closeModal();doSuspendClient(${id})">⛔ Suspend</button>`
+     <button class="btn btn-red" onclick="closeModal();doSuspendClient(${id})">Suspend</button>`
   );
 }
 
 async function doSuspendClient(id) {
   const res = await api('clients', 'suspend', { id });
   if (!res.ok) { toast(res.error || 'Error', 'error'); return; }
-  toast('Client suspended — BarMS will lock immediately ✅');
+  toast('Client suspended — BarMS will lock immediately');
   loadClients();
 }
 async function activateClient(id) {
   const res = await api('clients', 'activate', { id });
   if (!res.ok) { toast(res.error || 'Error', 'error'); return; }
-  toast('Client activated ✅');
+  toast('Client activated');
   loadClients();
 }
 
@@ -187,15 +192,15 @@ async function showRenewClient(id) {
 function copyActivationKey(btn, key) {
   if (!key) return;
   navigator.clipboard.writeText(key).then(() => {
-    btn.textContent = '✅';
-    setTimeout(() => btn.textContent = '📋', 2000);
+    btn.innerHTML = ico('check');
+    setTimeout(() => btn.innerHTML = ico('copy'), 2000);
     toast('Key copied: ' + key);
   }).catch(() => prompt('Copy this key:', key));
 }
 
 function copyKey(key) {
   navigator.clipboard.writeText(key)
-    .then(() => toast('Activation key copied! ✅'))
+    .then(() => toast('Activation key copied!'))
     .catch(() => {
       const el = document.createElement('textarea');
       el.value = key;
@@ -203,7 +208,7 @@ function copyKey(key) {
       el.select();
       document.execCommand('copy');
       document.body.removeChild(el);
-      toast('Key copied ✅');
+      toast('Key copied');
     });
 }
 

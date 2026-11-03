@@ -4,41 +4,47 @@
 ═══════════════════════════════════════════════════ */
 
 const PAGE_TITLES = {
-  support:       { en: 'Support inbox', fr: 'Messages d\'assistance' },
-  dashboard:     { en: 'Dashboard', fr: 'Tableau de bord' },
-  clients:       { en: 'Clients', fr: 'Clients' },
-  subscriptions: { en: 'Subscriptions', fr: 'Abonnements' },
-  payments:      { en: 'Payments', fr: 'Paiements' },
-  devices:       { en: 'Devices', fr: 'Appareils' },
-  licenses:      { en: 'Licenses', fr: 'Licences' },
-  products:      { en: 'Products', fr: 'Produits' },
-  map:           { en: 'Client Map', fr: 'Carte Clients' },
-  auditlog:      { en: 'Audit Log', fr: 'Journal d\'audit' },
-  settings:      { en: 'Settings', fr: 'Paramètres' },
+  dashboard:     { en: 'Control center',   fr: 'Centre de contrôle',  sub: { en: 'What needs you today',                         fr: 'Ce qui demande votre attention' } },
+  support:       { en: 'Support inbox',    fr: 'Messagerie support',  sub: { en: 'Messages from bar owners',                     fr: 'Messages des propriétaires de bars' } },
+  clients:       { en: 'Clients',          fr: 'Clients',             sub: { en: 'Every business using your products',           fr: 'Toutes les entreprises clientes' } },
+  subscriptions: { en: 'Subscriptions',    fr: 'Abonnements',         sub: { en: 'Plans, renewals and expiry dates',             fr: 'Forfaits, renouvellements et échéances' } },
+  payments:      { en: 'Payments',         fr: 'Paiements',           sub: { en: 'Record a payment to restore access at once',   fr: 'Enregistrez un paiement pour rétablir l\'accès' } },
+  devices:       { en: 'Devices',          fr: 'Appareils',           sub: { en: 'Approve or block each device',                 fr: 'Approuvez ou bloquez chaque appareil' } },
+  licenses:      { en: 'Licenses',         fr: 'Licences',            sub: { en: 'Issued licenses, view and revoke',             fr: 'Licences émises, consulter et révoquer' } },
+  products:      { en: 'Products & updates', fr: 'Produits et mises à jour', sub: { en: 'Versions and update releases',           fr: 'Versions et publications' } },
+  reports:       { en: 'Reports',          fr: 'Rapports',            sub: { en: 'Revenue, clients and subscriptions',           fr: 'Revenus, clients et abonnements' } },
+  map:           { en: 'Client map',       fr: 'Carte des clients',   sub: { en: 'Where your clients are',                       fr: 'Où se trouvent vos clients' } },
+  auditlog:      { en: 'Audit log',        fr: 'Journal d\'audit',    sub: { en: 'Every action taken inside IMS',                fr: 'Toutes les actions effectuées dans IMS' } },
+  settings:      { en: 'Settings',         fr: 'Paramètres',          sub: { en: 'Account, plans and email alerts',              fr: 'Compte, forfaits et alertes e-mail' } },
 };
 
+let _currentPage = 'dashboard';
+
 function showPage(page) {
-  // Hide all pages
+  _currentPage = page;
   document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
-  // Show target page
   const el = document.getElementById('page-' + page);
   if (el) el.style.display = 'block';
 
-  // Update nav
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach(n => {
-    if (n.getAttribute('onclick') && n.getAttribute('onclick').includes(`'${page}'`)) {
-      n.classList.add('active');
-    }
-  });
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.page === page));
 
-  // Update title
   const titles = PAGE_TITLES[page];
-  if (titles) document.getElementById('pageTitle').textContent = titles[currentLang] || titles.en;
+  if (titles) {
+    document.getElementById('pageTitle').textContent = titles[currentLang] || titles.en;
+    document.getElementById('pageSubtitle').textContent = titles.sub[currentLang] || titles.sub.en;
+    document.title = (titles.en) + ' · IMS';
+  }
 
-  // Load page data
+  // Workbench: open an editor tab, refresh the explorer, close the phone drawer
+  if (typeof imsOpenTab === 'function') imsOpenTab(page);
+  if (typeof imsRefreshTree === 'function') imsRefreshTree(page === 'clients');
+  if (typeof closeNav === 'function') closeNav();
+  if (typeof closePanels === 'function') closePanels();
+  const content = document.getElementById('pageContent');
+  if (content) { content.scrollTop = 0; content.classList.toggle('map-mode', page === 'map'); }
+
   const loaders = {
-    dashboard:     () => { loadDashboard(); setTimeout(() => { if(typeof _revenueChart !== 'undefined' && _revenueChart) _revenueChart.resize(); }, 300); },
+    dashboard:     () => { loadDashboard(); setTimeout(() => { if (typeof _revenueChart !== 'undefined' && _revenueChart) _revenueChart.resize(); }, 300); },
     clients:       loadClients,
     subscriptions: loadSubscriptions,
     payments:      loadPayments,
@@ -63,15 +69,16 @@ async function loadAlerts() {
 
   if (alerts.length === 0) {
     dot.style.display = 'none';
-    list.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted);font-size:13px">No alerts</div>';
+    list.innerHTML = '<div class="empty-state">Nothing needs attention.</div>';
     return;
   }
 
   dot.style.display = 'block';
+  const tone = { danger: 'var(--red)', warning: 'var(--orange)' };
   list.innerHTML = alerts.map(a => `
-    <div style="padding:10px 12px;border-bottom:1px solid var(--border);font-size:13px">
-      <div style="font-weight:600;color:${a.type === 'danger' ? 'var(--red)' : a.type === 'warning' ? 'var(--orange)' : 'var(--blue)'}">${esc(a.title)}</div>
-      <div style="color:var(--muted);font-size:12px;margin-top:2px">${esc(a.message)}</div>
+    <div class="notice-row">
+      <b style="color:${tone[a.type] || 'var(--blue)'}">${esc(a.title)}</b>
+      <span>${esc(a.message)}</span>
     </div>
   `).join('');
 }

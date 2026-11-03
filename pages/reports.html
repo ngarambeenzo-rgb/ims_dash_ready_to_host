@@ -2,7 +2,7 @@
 
   <div class="page-header">
     <div>
-      <div class="page-title">📊 Reports & Analytics</div>
+      <div class="page-title">Reports</div>
       <div class="page-sub">Revenue, subscriptions, clients and business insights</div>
     </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -15,32 +15,32 @@
         <option value="this_year">This Year</option>
         <option value="all_time">All Time</option>
       </select>
-      <button class="btn btn-ghost btn-sm" onclick="exportReports()">📥 Export</button>
-      <button class="btn btn-primary btn-sm" onclick="loadReports()">🔄 Refresh</button>
+      <button class="btn btn-ghost btn-sm" onclick="exportReports()">Export</button>
+      <button class="btn btn-primary btn-sm" onclick="loadReports()">Refresh</button>
     </div>
   </div>
 
   <!-- KPI CARDS -->
-  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">
-    <div class="card" style="padding:16px;border-left:3px solid #00D084">
-      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Total Revenue</div>
-      <div style="font-size:24px;font-weight:800;color:#00D084" id="rptTotalRevenue">—</div>
-      <div style="font-size:11px;color:var(--muted);margin-top:4px" id="rptRevChange"></div>
+  <div class="kpi-grid">
+    <div class="kpi green">
+      <div class="kpi-label">Total revenue</div>
+      <div class="kpi-value" id="rptTotalRevenue">—</div>
+      <div class="kpi-sub" id="rptRevChange"></div>
     </div>
-    <div class="card" style="padding:16px;border-left:3px solid #4D9EFF">
-      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Active Subscriptions</div>
-      <div style="font-size:24px;font-weight:800;color:#4D9EFF" id="rptActiveSubs">—</div>
-      <div style="font-size:11px;color:var(--muted);margin-top:4px" id="rptSubChange"></div>
+    <div class="kpi blue">
+      <div class="kpi-label">Active subscriptions</div>
+      <div class="kpi-value" id="rptActiveSubs">—</div>
+      <div class="kpi-sub" id="rptSubChange"></div>
     </div>
-    <div class="card" style="padding:16px;border-left:3px solid #A855F7">
-      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">New Clients</div>
-      <div style="font-size:24px;font-weight:800;color:#A855F7" id="rptNewClients">—</div>
-      <div style="font-size:11px;color:var(--muted);margin-top:4px" id="rptClientChange"></div>
+    <div class="kpi purple">
+      <div class="kpi-label">New clients</div>
+      <div class="kpi-value" id="rptNewClients">—</div>
+      <div class="kpi-sub" id="rptClientChange"></div>
     </div>
-    <div class="card" style="padding:16px;border-left:3px solid #FF8C42">
-      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Avg Revenue/Client</div>
-      <div style="font-size:24px;font-weight:800;color:#FF8C42" id="rptAvgRevenue">—</div>
-      <div style="font-size:11px;color:var(--muted);margin-top:4px" id="rptChurnRate"></div>
+    <div class="kpi gold">
+      <div class="kpi-label">Average revenue per client</div>
+      <div class="kpi-value" id="rptAvgRevenue">—</div>
+      <div class="kpi-sub" id="rptChurnRate"></div>
     </div>
   </div>
 
@@ -50,7 +50,7 @@
     <!-- Revenue over time -->
     <div class="card" style="padding:18px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-        <div class="card-title" style="margin:0"><span>💰</span> Revenue Over Time</div>
+        <div class="card-title" style="margin:0">Revenue over time</div>
         <div style="display:flex;gap:4px">
           <button class="chart-toggle-btn active" id="revenueChartBar" onclick="toggleRevenueChart('bar',this)">Bar</button>
           <button class="chart-toggle-btn" id="revenueChartLine" onclick="toggleRevenueChart('line',this)">Line</button>
@@ -61,32 +61,32 @@
 
     <!-- Subscription plan breakdown -->
     <div class="card" style="padding:18px">
-      <div class="card-title" style="margin-bottom:16px"><span>📋</span> Plan Breakdown</div>
+      <div class="card-title" style="margin-bottom:16px">Plan breakdown</div>
       <canvas id="rptPlanChart" height="160"></canvas>
       <div id="rptPlanLegend" style="margin-top:12px;display:flex;flex-direction:column;gap:6px"></div>
     </div>
   </div>
 
-  <!-- ROW 2: Client Status + Payment Methods + Expiring -->
+  <!-- ROW 2: Client status + Payment methods + Expiring -->
   <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px">
 
     <!-- Client status distribution -->
     <div class="card" style="padding:18px">
-      <div class="card-title" style="margin-bottom:14px"><span>👥</span> Client Status</div>
+      <div class="card-title" style="margin-bottom:14px">Client status</div>
       <canvas id="rptStatusChart" height="160"></canvas>
       <div id="rptStatusBreakdown" style="margin-top:12px;display:flex;flex-direction:column;gap:6px"></div>
     </div>
 
     <!-- Payment methods -->
     <div class="card" style="padding:18px">
-      <div class="card-title" style="margin-bottom:14px"><span>💳</span> Payment Methods</div>
+      <div class="card-title" style="margin-bottom:14px">Payment methods</div>
       <canvas id="rptPaymentMethodChart" height="160"></canvas>
       <div id="rptPaymentMethodList" style="margin-top:12px;display:flex;flex-direction:column;gap:6px"></div>
     </div>
 
     <!-- Expiring soon -->
     <div class="card" style="padding:18px">
-      <div class="card-title" style="margin-bottom:14px"><span>⏰</span> Expiring Soon</div>
+      <div class="card-title" style="margin-bottom:14px">Expiring soon</div>
       <div id="rptExpiringSoon" style="display:flex;flex-direction:column;gap:8px">
         <div style="text-align:center;padding:20px;color:var(--muted)">Loading...</div>
       </div>
@@ -98,7 +98,7 @@
 
     <!-- Top clients by revenue -->
     <div class="card" style="padding:18px">
-      <div class="card-title" style="margin-bottom:14px"><span>🏆</span> Top Clients by Revenue</div>
+      <div class="card-title" style="margin-bottom:14px">Top clients by revenue</div>
       <div id="rptTopClients" style="display:flex;flex-direction:column;gap:8px">
         <div style="text-align:center;padding:20px;color:var(--muted)">Loading...</div>
       </div>
@@ -106,7 +106,7 @@
 
     <!-- Monthly revenue summary -->
     <div class="card" style="padding:18px">
-      <div class="card-title" style="margin-bottom:14px"><span>📅</span> Monthly Revenue Summary</div>
+      <div class="card-title" style="margin-bottom:14px">Monthly revenue summary</div>
       <div id="rptMonthlySummary" style="display:flex;flex-direction:column;gap:6px">
         <div style="text-align:center;padding:20px;color:var(--muted)">Loading...</div>
       </div>
@@ -116,8 +116,8 @@
   <!-- ROW 4: Full payments table -->
   <div class="card" style="padding:18px;margin-bottom:14px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-      <div class="card-title" style="margin:0"><span>📄</span> Payment History</div>
-      <input type="text" class="search-input" placeholder="🔍 Search payments..." oninput="filterRptPayments(this.value)" style="width:200px"/>
+      <div class="card-title" style="margin:0">Payment history</div>
+      <input type="text" class="search-input" placeholder="Search payments" oninput="filterRptPayments(this.value)" style="width:200px"/>
     </div>
     <div style="overflow-x:auto">
       <table class="data-table" id="rptPaymentsTable">
@@ -143,7 +143,7 @@
 
   <!-- ROW 5: Sync activity -->
   <div class="card" style="padding:18px">
-    <div class="card-title" style="margin-bottom:14px"><span>🔄</span> Sync Activity (Last 30 Days)</div>
+    <div class="card-title" style="margin-bottom:14px">Sync activity, last 30 days</div>
     <canvas id="rptSyncChart" height="120"></canvas>
   </div>
 

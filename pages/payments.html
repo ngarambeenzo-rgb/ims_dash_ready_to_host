@@ -1,7 +1,7 @@
 <div id="page-payments" class="page" style="display:none">
   <div class="page-header">
-    <div><div class="page-title">💰 Payments</div><div class="page-sub">Record payments and instantly restore client access</div></div>
-    <button class="btn btn-green" onclick="showRecordPayment()">💰 Record Payment</button>
+    <div><div class="page-title">Payments</div><div class="page-sub">Record payments and instantly restore client access</div></div>
+    <button class="btn btn-green" onclick="showRecordPayment()">Record payment</button>
   </div>
 
   <!-- FIX: .kpi.green/.kpi.blue/.kpi.gold — color modifier on parent, not on .kpi-value -->
@@ -25,11 +25,11 @@
   </div>
 
   <div class="search-bar">
-    <input type="text" class="search-input" placeholder="🔍 Search payments..." oninput="filterPayments(this.value)"/>
+    <input type="text" class="search-input" placeholder="Search by client" oninput="filterPayments(this.value)"/>
   </div>
   <div class="card">
     <div class="table-wrap"><table>
-      <thead><tr><th>Client</th><th>Amount (RWF)</th><th>Plan</th><th>Devices</th><th>Period</th><th>Method</th><th>Recorded By</th><th>Date</th></tr></thead>
+      <thead><tr><th>Client</th><th>Amount (RWF)</th><th>Plan</th><th>Devices</th><th>Period</th><th>Method</th><th>Recorded by</th><th>Date</th></tr></thead>
       <tbody id="paymentsTable"><tr><td colspan="8" style="text-align:center;color:var(--muted);padding:32px">No payments yet</td></tr></tbody>
     </table></div>
   </div>

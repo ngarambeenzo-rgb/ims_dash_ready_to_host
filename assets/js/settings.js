@@ -26,7 +26,7 @@ async function loadAdmins() {
       <td>${esc(a.username)}</td>
       <td>${a.lastLogin ? fmtDateTime(a.lastLogin) : 'Never'}</td>
       <td>${statusBadge(a.active ? 'active' : 'suspended')}</td>
-      <td><button class="btn-icon" onclick="editAdmin(${a.id})">✏️</button></td>
+      <td><button class="btn-icon" onclick="editAdmin(${a.id})">${ico('edit')}</button></td>
     </tr>`).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">No admins</td></tr>';
 }
 
@@ -42,8 +42,8 @@ async function loadSettingsPlans() {
       <td>${p.clientCount || 0}</td>
       <td>
         <div style="display:flex;gap:4px">
-          <button class="btn-icon" onclick="editPlan(${p.id})">✏️</button>
-          <button class="btn-icon" onclick="deletePlan(${p.id})">🗑️</button>
+          <button class="btn-icon" onclick="editPlan(${p.id})">${ico('edit')}</button>
+          <button class="btn-icon" onclick="deletePlan(${p.id})">${ico('trash')}</button>
         </div>
       </td>
     </tr>`).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">No plans yet</td></tr>';
@@ -92,7 +92,7 @@ async function saveNewAdmin() {
   const res = await api('settings', 'add_admin', data);
   if (!res.ok) { toast(res.error || 'Error', 'error'); return; }
   closeModal();
-  toast('Admin added ✅');
+  toast('Admin added');
   loadAdmins();
 }
 
@@ -100,7 +100,7 @@ async function generateKeys() {
   confirm2('Generate new RSA key pair? This will invalidate ALL existing licenses. Only do this for initial setup.', async () => {
     const res = await api('settings', 'generate_keys', {});
     if (!res.ok) { toast(res.error || 'Error', 'error'); return; }
-    toast('RSA keys generated successfully ✅');
+    toast('RSA keys generated successfully');
     checkKeyStatus();
   });
 }
@@ -110,9 +110,9 @@ async function viewPublicKey() {
   if (!res.ok) { toast('No keys generated yet', 'error'); return; }
   openModal('IMS Public Key',
     `<p style="font-size:12px;color:var(--muted);margin-bottom:8px">Embed this in all BarMS installations to verify licenses.</p>
-    <div style="background:#f8fafc;border-radius:8px;padding:12px;font-family:monospace;font-size:10px;word-break:break-all;max-height:250px;overflow-y:auto;white-space:pre-wrap">${esc(res.publicKey)}</div>`,
+    <div style="background:var(--card2);border-radius:8px;padding:12px;font-family:monospace;font-size:10px;word-break:break-all;max-height:250px;overflow-y:auto;white-space:pre-wrap">${esc(res.publicKey)}</div>`,
     `<button class="btn btn-ghost" onclick="closeModal()">Close</button>
-     <button class="btn btn-primary" onclick="downloadPublicKey()">⬇ Download</button>`
+     <button class="btn btn-primary" onclick="downloadPublicKey()">Download</button>`
   );
 }
 
@@ -136,7 +136,7 @@ async function saveSystemSettings() {
   };
   const res = await api('settings', 'save_system', data);
   if (!res.ok) { toast(res.error || 'Error', 'error'); return; }
-  toast('Settings saved ✅');
+  toast('Settings saved');
 }
 
 async function filterLogs(q) { loadAuditLog(q); }
@@ -182,7 +182,7 @@ async function saveEditPlan(id) {
   const res = await api('subscriptions', 'edit_plan', data);
   if (!res.ok) { toast(res.error || 'Error', 'error'); return; }
   closeModal();
-  toast('Plan updated ✅');
+  toast('Plan updated');
   loadSettingsPlans();
 }
 

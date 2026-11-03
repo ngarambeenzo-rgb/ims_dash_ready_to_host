@@ -21,8 +21,7 @@ async function doLogin() {
   document.getElementById('loginWrap').style.display = 'none';
   document.getElementById('appShell').style.display = 'flex';
   document.getElementById('adminName').textContent = res.admin.fullName;
-  document.getElementById('adminRole').textContent = 'Super Admin';
-  document.getElementById('topbarAdmin').textContent = res.admin.fullName;
+  document.getElementById('adminRole').textContent = 'Super administrator';
   document.getElementById('avatarTxt').textContent = res.admin.fullName.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
 
   showPage('dashboard');
@@ -33,7 +32,7 @@ async function doLogout() {
   await api('auth', 'logout', {});
   session = { adminId: 0, username: '', fullName: '' };
   document.getElementById('appShell').style.display = 'none';
-  document.getElementById('loginWrap').style.display = 'flex';
+  document.getElementById('loginWrap').style.display = 'grid';
   document.getElementById('loginUser').value = '';
   document.getElementById('loginPass').value = '';
 }
@@ -47,7 +46,7 @@ async function changePassword() {
   if (nw.length < 6) { toast('Password must be at least 6 characters', 'error'); return; }
   const res = await api('auth', 'change_password', { current: cur, new: nw });
   if (!res.ok) { toast(res.error || 'Error', 'error'); return; }
-  toast('Password updated successfully');
+  toast('Password updated');
   document.getElementById('curPwd').value = '';
   document.getElementById('newPwd').value = '';
   document.getElementById('confPwd').value = '';
@@ -63,8 +62,7 @@ window.addEventListener('load', async () => {
     _show('loginWrap', 'none');
     _show('appShell', 'flex');
     _set('adminName', res.admin.fullName);
-    _set('adminRole', 'Super Admin');
-    _set('topbarAdmin', res.admin.fullName);
+    _set('adminRole', 'Super administrator');
     _set('avatarTxt', res.admin.fullName.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase());
     showPage('dashboard');
     loadAlerts();

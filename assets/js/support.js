@@ -2,7 +2,7 @@
    Support inbox (messages from BarMS owners) and Email & alerts settings. */
 
 const SUP_CAT = { bug: 'Not working', question: 'Question', billing: 'Licence / payment', feature: 'Idea' };
-const SUP_ST  = { new: ['#2563EB', 'New'], in_progress: ['#C2410C', 'In progress'], resolved: ['#047857', 'Resolved'] };
+const SUP_ST  = { new: ['var(--blue)', 'New'], in_progress: ['var(--orange)', 'In progress'], resolved: ['var(--green)', 'Resolved'] };
 const supEsc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 async function loadSupportInbox() {
@@ -23,11 +23,11 @@ async function loadSupportInbox() {
           ${t.contact ? `<div style="font-size:12px;margin-top:2px">Contact: <b>${supEsc(t.contact)}</b></div>` : ''}</div>
         <span style="font-size:12px;font-weight:700;color:${col}">● ${lbl}</span>
       </div>
-      <div style="white-space:pre-wrap;font-size:13px;margin:10px 0;background:rgba(0,0,0,.03);padding:10px;border-radius:8px">${supEsc(t.message)}</div>
+      <div style="white-space:pre-wrap;font-size:13px;margin:10px 0;background:rgba(255,255,255,.04);padding:10px;border-radius:8px">${supEsc(t.message)}</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         ${t.status !== 'in_progress' ? `<button class="btn btn-ghost btn-sm" onclick="setSupportStatus(${t.id},'in_progress')">Mark in progress</button>` : ''}
         ${t.status !== 'resolved' ? `<button class="btn btn-primary btn-sm" onclick="setSupportStatus(${t.id},'resolved')">Mark resolved</button>` : `<button class="btn btn-ghost btn-sm" onclick="setSupportStatus(${t.id},'new')">Reopen</button>`}
-        <span style="font-size:12px;color:${t.email_status === 'sent' ? '#047857' : '#BE123C'}">${t.email_status === 'sent' ? 'Emailed to the team' : 'Email not sent' + (t.email_error ? ': ' + supEsc(t.email_error) : '')}</span>
+        <span style="font-size:12px;color:${t.email_status === 'sent' ? 'var(--green)' : 'var(--red)'}">${t.email_status === 'sent' ? 'Emailed to the team' : 'Email not sent' + (t.email_error ? ': ' + supEsc(t.email_error) : '')}</span>
         ${t.email_status !== 'sent' ? `<button class="btn btn-ghost btn-sm" onclick="resendSupport(${t.id})">Email again</button>` : ''}
       </div>
     </div>`;
@@ -94,7 +94,7 @@ async function loadAlertLog() {
   if (!el) return;
   const kind = { due_soon: 'Ends soon', due_today: 'Ends today', overdue: 'Overdue' };
   el.innerHTML = (r.data || []).map(a => `<tr><td>${supEsc(a.business_name || '#' + a.client_id)}</td><td>${kind[a.kind] || a.kind}</td><td>${supEsc(a.expiry_date)}</td>
-    <td style="font-size:12px">${supEsc(a.sent_to || '—')}</td><td style="color:${+a.ok ? '#047857' : '#BE123C'}">${+a.ok ? 'Sent' : supEsc(a.error || 'Failed')}</td><td style="font-size:12px">${supEsc(a.created_at)}</td></tr>`).join('')
+    <td style="font-size:12px">${supEsc(a.sent_to || '—')}</td><td style="color:${+a.ok ? 'var(--green)' : 'var(--red)'}">${+a.ok ? 'Sent' : supEsc(a.error || 'Failed')}</td><td style="font-size:12px">${supEsc(a.created_at)}</td></tr>`).join('')
     || '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px">No alerts yet</td></tr>';
 }
 

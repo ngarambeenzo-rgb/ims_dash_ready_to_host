@@ -61,7 +61,7 @@ function renderKPIs(d) {
     const revEl = document.getElementById('rptRevChange');
     if (revEl) {
       revEl.textContent = (revChange >= 0 ? '▲ +' : '▼ ') + revChange + '% vs prev period';
-      revEl.style.color = revChange >= 0 ? '#00D084' : '#FF4D6D';
+      revEl.style.color = revChange >= 0 ? 'var(--green)' : 'var(--red)';
     }
   }
 
@@ -74,7 +74,7 @@ function renderKPIs(d) {
     const cliEl = document.getElementById('rptClientChange');
     if (cliEl) {
       cliEl.textContent = (cliChange >= 0 ? '▲ +' : '▼ ') + cliChange + '% vs prev period';
-      cliEl.style.color = cliChange >= 0 ? '#00D084' : '#FF4D6D';
+      cliEl.style.color = cliChange >= 0 ? 'var(--green)' : 'var(--red)';
     }
   }
 
@@ -139,8 +139,8 @@ function renderRevenueChart(d) {
         }
       },
       scales: {
-        x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#7B8CAA', font: { size: 10 } } },
-        y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#7B8CAA', font: { size: 10 }, callback: v => 'RWF ' + (v/1000).toFixed(0) + 'k' } },
+        x: { grid: { color: 'rgba(255,255,255,0.07)' }, ticks: { color: '#9da1a6', font: { size: 10 } } },
+        y: { grid: { color: 'rgba(255,255,255,0.07)' }, ticks: { color: '#9da1a6', font: { size: 10 }, callback: v => 'RWF ' + (v/1000).toFixed(0) + 'k' } },
       }
     }
   });
@@ -207,7 +207,7 @@ function renderStatusChart(d) {
     { label: 'Active',    count: d.activeClients  || 0, color: '#00D084' },
     { label: 'Trial',     count: d.trialClients   || 0, color: '#4D9EFF' },
     { label: 'Expired',   count: d.expiredClients || 0, color: '#FF4D6D' },
-    { label: 'Suspended', count: d.suspClients    || 0, color: '#7B8CAA' },
+    { label: 'Suspended', count: d.suspClients    || 0, color: '#9da1a6' },
   ].filter(s => s.count > 0);
 
   _rptStatusChart = new Chart(ctx, {
@@ -279,7 +279,7 @@ function renderExpiringSoon(expiring) {
   if (!el) return;
 
   if (!expiring.length) {
-    el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted)"><div style="font-size:24px">✅</div><p style="margin-top:8px;font-size:12px">No expiries in next 30 days</p></div>';
+    el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted)"><div style="font-size:24px"></div><p style="margin-top:8px;font-size:12px">No expiries in next 30 days</p></div>';
     return;
   }
 
@@ -314,7 +314,7 @@ function renderTopClients(clients) {
   el.innerHTML = clients.map((c, i) => {
     const pct   = maxRevenue > 0 ? Math.round((c.totalPaid / maxRevenue) * 100) : 0;
     const color = i === 0 ? '#FFD700' : i === 1 ? '#C0C0C0' : i === 2 ? '#CD7F32' : '#4D9EFF';
-    const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1) + '.';
+    const medal = (i + 1) + '.';
 
     return `
     <div style="display:flex;align-items:center;gap:10px">
@@ -348,7 +348,7 @@ function renderMonthlySummary(summary) {
       <span>Month</span><span style="text-align:right">Revenue</span><span style="text-align:right">Payments</span><span style="text-align:right">Clients</span>
     </div>
     ${summary.map((m, i) => `
-    <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:8px;padding:7px 8px;font-size:12px;background:${i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)'};border-radius:4px">
+    <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:8px;padding:7px 8px;font-size:12px;background:${i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.03)'};border-radius:4px">
       <span style="color:var(--text);font-weight:600">${esc(m.label)}</span>
       <span style="text-align:right;color:#00D084;font-weight:700">RWF ${(m.revenue/1000).toFixed(0)}k</span>
       <span style="text-align:right;color:var(--muted)">${m.payments}</span>
@@ -448,8 +448,8 @@ function renderSyncChart(activity) {
       responsive: true,
       plugins: { legend: { display: false } },
       scales: {
-        x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#7B8CAA', font: { size: 9 } } },
-        y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#7B8CAA', font: { size: 10 } }, beginAtZero: true },
+        x: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#9da1a6', font: { size: 9 } } },
+        y: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#9da1a6', font: { size: 10 } }, beginAtZero: true },
       }
     }
   });
@@ -475,5 +475,5 @@ function exportReports() {
   a.download    = 'IMS_Reports_' + new Date().toISOString().split('T')[0] + '.csv';
   a.click();
   URL.revokeObjectURL(url);
-  toast('Report exported ✅');
+  toast('Report exported');
 }

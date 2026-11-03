@@ -86,9 +86,13 @@ if ($action === 'dashboard') {
     }
 
     // Clients for map
-    $mapStmt = $db->query("SELECT c.business_name, c.location, c.status, c.contact_phone FROM ims_clients c LIMIT 100");
+    $mapStmt = $db->query("SELECT c.business_name, c.location, c.status, c.contact_phone, c.lat, c.lng FROM ims_clients c LIMIT 100");
     $clientsForMap = $mapStmt->fetchAll();
-    foreach ($clientsForMap as &$r) { $r['businessName'] = $r['business_name']; }
+    foreach ($clientsForMap as &$r) { $r['businessName'] = $r['business_name']; $r['lat'] = $r['lat'] !== null ? (float)$r['lat'] : null; $r['lng'] = $r['lng'] !== null ? (float)$r['lng'] : null; }
+    unset($r);
+    $devicesForMap = $db->query("SELECT id, last_lat, last_lng FROM ims_devices WHERE last_lat IS NOT NULL LIMIT 300")->fetchAll();
+    foreach ($devicesForMap as &$r) { $r['last_lat'] = (float)$r['last_lat']; $r['last_lng'] = (float)$r['last_lng']; }
+    unset($r);
 
     // Alerts
     $alerts = [];
@@ -96,7 +100,27 @@ if ($action === 'dashboard') {
     if ($expiringSoon > 0)   $alerts[] = ['type' => 'warning', 'icon' => '⏰', 'title' => "$expiringSoon subscription(s) expiring in 7 days", 'message' => 'Record payment to renew'];
     if ($expiredClients > 0) $alerts[] = ['type' => 'danger',  'icon' => '🔴', 'title' => "$expiredClients client(s) subscription expired", 'message' => 'Their app is locked'];
 
+    // Support inbox: tickets nobody has opened yet, and ones whose team email failed
+    $newTickets = 0; $failedEmails = 0;
+    try {
+        $newTickets   = (int)$db->query("SELECT COUNT(*) FROM ims_support_tickets WHERE status='new'")->fetchColumn();
+        $failedEmails = (int)$db->query("SELECT COUNT(*) FROM ims_support_tickets WHERE status<>'resolved' AND email_status='failed'")->fetchColumn();
+    } catch (Throwable $e) {}
+
+    // Paying clients whose devices have not contacted IMS for 7+ days (offline, uninstalled or blocked by their network)
+    $silent = $db->query("SELECT c.id, c.business_name AS businessName, c.location, MAX(d.last_sync) AS lastSync
+        FROM ims_clients c LEFT JOIN ims_devices d ON d.client_id = c.id AND d.status = 'approved'
+        WHERE c.status IN ('active','trial')
+        GROUP BY c.id, c.business_name, c.location
+        HAVING MAX(d.last_sync) IS NULL OR MAX(d.last_sync) < DATE_SUB(NOW(), INTERVAL 7 DAY)
+        ORDER BY MAX(d.last_sync) IS NULL, MAX(d.last_sync) ASC LIMIT 6")->fetchAll();
+    foreach ($silent as &$r) { $r['id'] = (int)$r['id']; }
+    unset($r);
+
     jsonOut(['ok' => true, 'data' => [
+        'newTickets'     => $newTickets,
+        'failedEmails'   => $failedEmails,
+        'silentClients'  => $silent,
         'totalClients'   => $totalClients,
         'activeClients'  => $activeClients,
         'trialClients'   => $trialClients,
@@ -116,6 +140,7 @@ if ($action === 'dashboard') {
         'products'       => $products,
         'recentActivity' => $recentActivity,
         'clientsForMap'  => $clientsForMap,
+        'devicesForMap'  => $devicesForMap,
         'alerts'         => $alerts,
     ]]);
 }

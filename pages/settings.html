@@ -1,45 +1,45 @@
 <div id="page-settings" class="page" style="display:none">
   <div class="page-header">
-    <div><div class="page-title">⚙️ Settings</div><div class="page-sub">System configuration and admin management</div></div>
+    <div><div class="page-title">Settings</div><div class="page-sub">System configuration and admin management</div></div>
   </div>
   <div class="tabs">
-    <div class="tab active" onclick="switchSettingsTab('admins',this)">👥 Admins</div>
-    <div class="tab" onclick="switchSettingsTab('plans',this)">📋 Plans</div>
-    <div class="tab" onclick="switchSettingsTab('keys',this)">🔐 RSA Keys</div>
-    <div class="tab" onclick="switchSettingsTab('system',this)">⚙️ System</div>
-    <div class="tab" onclick="switchSettingsTab('email',this)">✉️ Email &amp; alerts</div>
+    <div class="tab active" onclick="switchSettingsTab('admins',this)">Admins</div>
+    <div class="tab" onclick="switchSettingsTab('plans',this)">Plans</div>
+    <div class="tab" onclick="switchSettingsTab('keys',this)">RSA keys</div>
+    <div class="tab" onclick="switchSettingsTab('system',this)">System</div>
+    <div class="tab" onclick="switchSettingsTab('email',this)">Email &amp; alerts</div>
   </div>
 
   <div id="settingsAdmins">
     <div class="flex-between mb-16">
-      <div class="card-title" style="margin:0"><span>👥</span> Admin Accounts</div>
-      <button class="btn btn-primary btn-sm" onclick="showAddAdmin()">+ Add Admin</button>
+      <div class="card-title" style="margin:0">Admin accounts</div>
+      <button class="btn btn-primary btn-sm" onclick="showAddAdmin()">Add admin</button>
     </div>
     <div class="card">
       <div class="table-wrap"><table>
-        <thead><tr><th>Name</th><th>Username</th><th>Last Login</th><th>Status</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Name</th><th>Username</th><th>Last login</th><th>Status</th><th>Actions</th></tr></thead>
         <tbody id="adminsTable"><tr><td colspan="5" style="text-align:center;color:var(--muted);padding:32px">Loading...</td></tr></tbody>
       </table></div>
     </div>
     <div class="card mt-16">
-      <div class="card-title"><span>🔒</span> Change My Password</div>
+      <div class="card-title">Change my password</div>
       <div class="form-row cols-3">
-        <div class="form-group"><label class="form-label">Current Password</label><input type="password" class="form-input" id="curPwd" placeholder="••••••••"/></div>
-        <div class="form-group"><label class="form-label">New Password</label><input type="password" class="form-input" id="newPwd" placeholder="••••••••"/></div>
-        <div class="form-group"><label class="form-label">Confirm Password</label><input type="password" class="form-input" id="confPwd" placeholder="••••••••"/></div>
+        <div class="form-group"><label class="form-label">Current password</label><input type="password" class="form-input" id="curPwd" placeholder="••••••••"/></div>
+        <div class="form-group"><label class="form-label">New password</label><input type="password" class="form-input" id="newPwd" placeholder="••••••••"/></div>
+        <div class="form-group"><label class="form-label">Confirm password</label><input type="password" class="form-input" id="confPwd" placeholder="••••••••"/></div>
       </div>
-      <button class="btn btn-primary" onclick="changePassword()">Update Password</button>
+      <button class="btn btn-primary" onclick="changePassword()">Update password</button>
     </div>
   </div>
 
   <div id="settingsPlans" style="display:none">
     <div class="flex-between mb-16">
-      <div class="card-title" style="margin:0"><span>📋</span> Subscription Plan Types</div>
-      <button class="btn btn-primary btn-sm" onclick="showAddPlan()">+ Add Plan</button>
+      <div class="card-title" style="margin:0">Subscription Plan Types</div>
+      <button class="btn btn-primary btn-sm" onclick="showAddPlan()">Add plan</button>
     </div>
     <div class="card">
       <div class="table-wrap"><table>
-        <thead><tr><th>Plan Name</th><th>Duration (days)</th><th>Price (RWF)</th><th>Clients Using</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Plan</th><th>Duration (days)</th><th>Price (RWF)</th><th>Clients using it</th><th>Actions</th></tr></thead>
         <tbody id="settingsPlansTable"><tr><td colspan="5" style="text-align:center;color:var(--muted);padding:32px">No plans yet</td></tr></tbody>
       </table></div>
     </div>
@@ -47,20 +47,20 @@
 
   <div id="settingsKeys" style="display:none">
     <div class="card">
-      <div class="card-title"><span>🔐</span> RSA Key Pair</div>
-      <div class="alert alert-blue"><span>ℹ️</span><div>The RSA private key signs all licenses. Never share it. Changing keys invalidates all existing licenses. Generate once — keep forever.</div></div>
+      <div class="card-title">RSA Key Pair</div>
+      <div class="alert alert-blue"><div>The RSA private key signs all licenses. Never share it. Changing keys invalidates all existing licenses. Generate once — keep forever.</div></div>
       <div id="keyStatus" style="margin-bottom:16px"></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
-        <button class="btn btn-primary" onclick="generateKeys()">🔑 Generate New Key Pair</button>
-        <button class="btn btn-ghost" onclick="viewPublicKey()">👁 View Public Key</button>
-        <button class="btn btn-ghost" onclick="downloadPublicKey()">⬇ Download Public Key</button>
+        <button class="btn btn-primary" onclick="generateKeys()">Generate new key pair</button>
+        <button class="btn btn-ghost" onclick="viewPublicKey()">View public key</button>
+        <button class="btn btn-ghost" onclick="downloadPublicKey()">Download public key</button>
       </div>
     </div>
   </div>
 
   <div id="settingsEmail" style="display:none">
     <div class="card">
-      <div class="card-title"><span>✉️</span> Who receives emails</div>
+      <div class="card-title">Who receives emails</div>
       <p style="font-size:13px;color:var(--muted);margin:6px 0 14px">One address per line (or separated by commas). Changes apply to every BarMS at once — nothing to update in the bars.</p>
       <div class="form-row cols-2">
         <div class="form-group"><label class="form-label">Support messages from BarMS owners</label>
@@ -74,7 +74,7 @@
         <input type="number" class="form-input" id="emDays" min="1" max="60" value="7"/></div>
     </div>
     <div class="card">
-      <div class="card-title"><span>📮</span> Sending service (Brevo — free 300 emails a day)</div>
+      <div class="card-title">Sending service (Brevo — free 300 emails a day)</div>
       <p style="font-size:13px;color:var(--muted);margin:6px 0 14px">Your hosting blocks normal PHP email, so IMS sends through Brevo. Create a free account at app.brevo.com, verify a sender address, then paste an API key (SMTP &amp; API → API keys).</p>
       <div class="form-row cols-2">
         <div class="form-group"><label class="form-label">Brevo API key</label>
@@ -92,7 +92,7 @@
       </div>
     </div>
     <div class="card">
-      <div class="card-title"><span>🔔</span> Payment alerts sent</div>
+      <div class="card-title">Payment alerts sent</div>
       <p style="font-size:13px;color:var(--muted);margin:6px 0 12px">IMS checks automatically every hour while bars are online, and emails each client's due date once (ending soon, ending today, overdue).</p>
       <div class="table-wrap"><table><thead><tr><th>Client</th><th>Alert</th><th>Subscription ends</th><th>Sent to</th><th>Result</th><th>When</th></tr></thead>
         <tbody id="emAlertLog"></tbody></table></div>
@@ -101,7 +101,7 @@
 
   <div id="settingsSystem" style="display:none">
     <div class="card">
-      <div class="card-title"><span>⚙️</span> System Settings</div>
+      <div class="card-title">System settings</div>
       <div class="form-row cols-2">
         <div class="form-group"><label class="form-label">Company Name</label><input type="text" class="form-input" id="sysCompany" value="IMS Company"/></div>
         <div class="form-group"><label class="form-label">System Name</label><input type="text" class="form-input" id="sysName" value="IMS — Instance Management System"/></div>
@@ -109,7 +109,7 @@
         <div class="form-group"><label class="form-label">Grace Period (days)</label><input type="number" inputmode="numeric" class="form-input" id="sysGracePeriod" value="17"/></div>
       </div>
       <div class="form-group"><label class="form-label">Google Maps API Key</label><input type="text" class="form-input" id="sysMapsKey" placeholder="AIza..."/></div>
-      <button class="btn btn-primary" onclick="saveSystemSettings()">Save Settings</button>
+      <button class="btn btn-primary" onclick="saveSystemSettings()">Save settings</button>
     </div>
   </div>
 </div>

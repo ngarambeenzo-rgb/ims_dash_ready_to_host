@@ -1,775 +1,782 @@
 /* ═══════════════════════════════════════════════════
-   IMS — map.js — Full Google Maps-like Experience
-   Features:
-   1. Dark streets with buildings, roads, POIs
-   2. Real GPS user location
-   3. Client markers with full info popups
-   4. Turn-by-turn directions with 3 route options
-   5. Nearby places (restaurants, hotels, gas etc)
-   6. Search bar with geocoding
-   7. Traffic / Satellite / Streets tiles
-   8. Distance measurement
-   9. Share & print map
-   10. Fullscreen support
+   IMS — map.js
+   One live map for everything we control: client businesses (address set
+   by us), devices running our products (position reported by the product),
+   websites we run for clients, and the places around them.
+   • Night vector map of East Africa, focused on Rwanda (see map-style.js)
+   • Updates by itself: a tiny "has anything changed?" check every 5 seconds
 ═══════════════════════════════════════════════════ */
 
-let _mainMap          = null;
-let _dashMap          = null;
-let _mapMarkers       = [];
-let _tileLayer        = null;
-let _labelLayer       = null;
-let _routeLayers      = [];
-let _nearbyMarkers    = [];
-let _userMarker       = null;
-let _allMapClients    = [];
-let _currentTile      = 'dark';
-let _selectedRoute    = 0;
-let _currentRoutes    = [];
-let _destClient       = null;
-let _userLatLng       = null;
-
+let _dashMap = null;
 const RWANDA_CENTER = [-1.9441, 30.0619];
-const RWANDA_ZOOM   = 9;
+const MAP_TILES = { streets: { url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png' } };   // used by the small address picker in the client form
 
-const RWANDA_LOCATIONS = [
-  { city:'Kigali — Nyarugenge', lat:-1.9441, lng:30.0619 },
-  { city:'Kigali — Gasabo',     lat:-1.8900, lng:30.1200 },
-  { city:'Kigali — Kicukiro',   lat:-1.9800, lng:30.1000 },
-  { city:'Butare / Huye',       lat:-2.5967, lng:29.7394 },
-  { city:'Musanze',             lat:-1.4994, lng:29.6336 },
-  { city:'Rubavu / Gisenyi',    lat:-1.7017, lng:29.2567 },
-  { city:'Byumba / Gicumbi',    lat:-1.5764, lng:30.0647 },
-  { city:'Rwamagana',           lat:-1.9489, lng:30.4350 },
-  { city:'Nyanza',              lat:-2.3542, lng:29.7314 },
-  { city:'Rusizi',              lat:-2.4847, lng:28.9089 },
-  { city:'Kibungo',             lat:-2.1597, lng:30.5442 },
-  { city:'Gitarama',            lat:-2.0742, lng:29.7569 },
-  { city:'Kibuye',              lat:-2.0598, lng:29.3483 },
-  { city:'Kayonza',             lat:-1.9862, lng:30.6507 },
-  { city:'Nyagatare',           lat:-1.3011, lng:30.3258 },
-];
-
-const STATUS_COLORS = {
-  active:    '#00D084',
-  trial:     '#4D9EFF',
-  expired:   '#FF4D6D',
-  suspended: '#7B8CAA',
+const _M = {
+  map: null, ready: false, style: 'dark', pitch3d: false,
+  data: { clients: [], devices: [], deployments: [], stats: {} }, loadedAt: 0, pulseV: null,
+  mk: { client: {}, device: {} }, clusters: [],
+  on: { clients: true, devices: true, alerts: true, comp: true, other: true, infra: true, buildings: true, bounds: true },
+  sel: null, tab: 'clients', query: '', placing: null, places: '', placeRows: [], cands: [],
+  events: [], unseen: 0, pulseTimer: null, freshTimer: null, insightTimer: null, me: null, placeMk: null,
 };
+const _FR = { live: 'Live now', recent: 'Seen today', stale: 'Not seen for over a day', lost: 'Marked lost', none: 'No position yet' };
+const _ST = { active: 'Active', trial: 'Trial', expired: 'Expired', suspended: 'Suspended' };
 
-// Tile layers — dark with full street detail
-const TILES = {
-  dark: {
-    url:  'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    attr: '© OpenStreetMap © CARTO',
-    name: '🌑 Dark'
-  },
-  streets: {
-    url:  'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-    attr: '© OpenStreetMap © CARTO',
-    name: '🗺️ Streets'
-  },
-  satellite: {
-    url:  'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    attr: '© Esri',
-    name: '🛰️ Satellite'
-  },
-  traffic: {
-    // Satellite + OpenStreetMap labels overlay (simulates traffic view)
-    url:  'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    attr: '© OpenStreetMap © CARTO',
-    name: '🚦 Traffic'
-  },
+// ── small helpers ─────────────────────────────────
+function _ago(min) {
+  if (min === null || min === undefined) return 'never';
+  min = Math.max(0, Math.round(min));
+  if (min < 1) return 'just now';
+  if (min < 60) return min + ' min ago';
+  if (min < 1440) return Math.round(min / 60) + ' h ago';
+  return Math.round(min / 1440) + ' d ago';
+}
+const _gDir  = (lat, lng) => `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+const _gOpen = (lat, lng) => `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+function _km(a, b) {
+  const R = 6371, rad = x => x * Math.PI / 180;
+  const dLat = rad(b[0] - a[0]), dLng = rad(b[1] - a[1]);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a[0])) * Math.cos(rad(b[0])) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+function _fmtKm(km) { return km === null || km === undefined ? '' : km < 1 ? Math.round(km * 1000) + ' m' : km.toFixed(km < 10 ? 1 : 0) + ' km'; }
+const _client = id => _M.data.clients.find(c => c.id === id);
+const _device = id => _M.data.devices.find(d => d.id === id);
+const _clientName = d => { const c = _client(d.clientId); return c ? c.business_name : 'Unknown client'; };
+// How old a position is *now* (the server told us its age when we loaded)
+function _age(d) { return d.ageMin === null || d.ageMin === undefined ? null : d.ageMin + (Date.now() - _M.loadedAt) / 60000; }
+function _fr(d) {
+  if (d.lost) return 'lost';
+  const a = _age(d);
+  return a === null ? 'none' : a <= 15 ? 'live' : a <= 1440 ? 'recent' : 'stale';
+}
+function _daysLeft(c) { return c.expiry_date ? Math.ceil((new Date(c.expiry_date) - new Date(new Date().toDateString())) / 86400000) : null; }
+function _attention(c) {
+  if (c.status === 'expired' || c.status === 'suspended') return 'bad';
+  const d = _daysLeft(c); if (d !== null && d <= 7) return d < 0 ? 'bad' : 'warn';
+  return '';
+}
+function _clientOnline(c) { return _M.data.devices.some(d => d.clientId === c.id && _fr(d) === 'live'); }
+
+// ── map set-up ────────────────────────────────────
+function _initMainMap() {
+  if (_M.map) return;
+  if (typeof maplibregl === 'undefined') { document.getElementById('mapList').innerHTML = '<div class="empty-state">The map library could not load. Check the internet connection and reload.</div>'; return; }
+  const rw = IMS_REGIONS.rwanda.bounds;
+  _M.map = new maplibregl.Map({
+    container: 'mainMap', style: imsDarkStyle(), attributionControl: false, maxBounds: IMS_MAX_BOUNDS, minZoom: 3.2, maxPitch: 70,
+    bounds: rw, fitBoundsOptions: { padding: 30 }, pitchWithRotate: true, dragRotate: true, hash: false,
+  });
+  _M.map.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: '© OpenStreetMap contributors · OpenFreeMap' }), 'bottom-left');
+  _M.map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-left');
+  _M.map.on('style.load', _onStyleLoad);
+  _M.map.on('click', e => {
+    if (_M.placing) return _placeAt(e.lngLat.lat, e.lngLat.lng);
+    if (_M.sel && !e.originalEvent.target.closest('.pin')) mapClose();
+  });
+  _M.map.on('moveend', () => { _cluster(); _scheduleInsights(); });
+  _M.map.on('idle', () => _scheduleInsights());
+  _M.map.on('zoom', () => _clusterSoon());
+  window.addEventListener('resize', () => _M.map && _M.map.resize());
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && _currentPage === 'map') _pulse(true); });
+  _M.pulseTimer = setInterval(_pulse, 5000);
+  _M.freshTimer = setInterval(() => { if (_currentPage === 'map') _refreshFresh(); }, 30000);
+}
+
+function _onStyleLoad() {
+  const m = _M.map;
+  m.addSource('alerts', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+  m.addSource('sel',    { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+  m.addSource('trail',  { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+  m.addLayer({ id: 'alert-fill', type: 'fill', source: 'alerts', filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'fill-color': '#ef4444', 'fill-opacity': .16 } });
+  m.addLayer({ id: 'alert-line', type: 'line', source: 'alerts', filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'line-color': '#f87171', 'line-width': 1.5, 'line-dasharray': [2, 2] } });
+  m.addLayer({ id: 'alert-link', type: 'line', source: 'alerts', filter: ['==', ['geometry-type'], 'LineString'], paint: { 'line-color': '#fb923c', 'line-width': 2, 'line-dasharray': [2, 2] } });
+  m.addLayer({ id: 'sel-fill', type: 'fill', source: 'sel', filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'fill-color': '#22d3ee', 'fill-opacity': .06 } });
+  m.addLayer({ id: 'sel-line', type: 'line', source: 'sel', paint: { 'line-color': '#22d3ee', 'line-width': 1.6, 'line-dasharray': [3, 3] } });
+  m.addLayer({ id: 'trail-glow', type: 'line', source: 'trail', filter: ['==', ['geometry-type'], 'LineString'], paint: { 'line-color': '#22d3ee', 'line-width': 9, 'line-blur': 5, 'line-opacity': .5 } });
+  m.addLayer({ id: 'trail-line', type: 'line', source: 'trail', filter: ['==', ['geometry-type'], 'LineString'], paint: { 'line-color': '#67e8f9', 'line-width': 3 } });
+  m.addLayer({ id: 'trail-pts', type: 'circle', source: 'trail', filter: ['==', ['geometry-type'], 'Point'], paint: { 'circle-radius': ['case', ['get', 'end'], 6, 3.2], 'circle-color': ['case', ['get', 'start'], '#fbbf24', '#22d3ee'], 'circle-stroke-color': '#040816', 'circle-stroke-width': 1.4 } });
+  if (_M.style === 'dark') imsAddFocusCountry(m, 'Rwanda').then(_applyLayerToggles);
+  _M.ready = true;
+  _applyLayerToggles(); _drawAlerts(); _drawSelection();
+  if (_M.data.clients.length && !_M.loadedAt) _applyData();
+}
+
+function mapStyle(name) {
+  if (name === _M.style) return;
+  _M.style = name; _M.ready = false;
+  document.querySelectorAll('#styleSeg button').forEach(b => b.classList.toggle('on', b.dataset.s === name));
+  _M.map.setStyle(name === 'satellite' ? imsSatelliteStyle() : imsDarkStyle());
+}
+
+// ── layer toggles (legend) ────────────────────────
+const _LAYER_IDS = {
+  comp: ['poi-glow-comp', 'poi-comp', 'poi-comp-label'], other: ['poi-other', 'poi-other-label'],
+  infra: ['poi-infra', 'poi-infra-label', 'poi-misc-label', 'housenumber'],
+  buildings: ['building-flat', 'building-3d'], bounds: ['boundary-region', 'boundary-district', 'boundary-country-glow', 'boundary-country', 'focus-mask', 'focus-area', 'focus-glow', 'focus-edge'],
+  alerts: ['alert-fill', 'alert-line', 'alert-link'],
 };
+function mapLayerToggle(key, on) {
+  _M.on[key] = on;
+  if (key === 'clients' || key === 'devices') { _cluster(); return; }
+  _applyLayerToggles();
+}
+function _applyLayerToggles() {
+  const m = _M.map; if (!m || !_M.ready) return;
+  Object.keys(_LAYER_IDS).forEach(k => _LAYER_IDS[k].forEach(id => { if (m.getLayer(id)) m.setLayoutProperty(id, 'visibility', _M.on[k] ? 'visible' : 'none'); }));
+}
+function mapLegendToggle() { document.getElementById('mapLegend').classList.toggle('closed'); }
 
-// ── LOAD MAP ──────────────────────────────────────
-async function loadMap() {
-  const res = await apiGet('clients', 'list');
-  _allMapClients = res.data || [];
+// ── loading + real time ───────────────────────────
+async function loadMap(force) {
+  _initMainMap();
+  if (!_M.map) return;
+  setTimeout(() => _M.map.resize(), 60);
+  if (!force && Date.now() - _M.loadedAt < 8000) return;
+  await _fetchOverview(true);
+}
+async function _fetchOverview(initial) {
+  const res = await apiGet('track', 'overview');
+  if (!res.ok) { document.getElementById('mapList').innerHTML = `<div class="empty-state">${esc(res.error || 'Could not load the map data.')}</div>`; return; }
+  const prev = _M.data; const first = !_M.loadedAt;
+  _M.data = res.data; _M.loadedAt = Date.now();
+  if (!first) _diffEvents(prev, _M.data);
+  if (_M.ready) _applyData();
+  _renderStats(); _renderList();
+  _setLive('Live · updated ' + new Date().toLocaleTimeString('en-RW', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+  if (_M.sel) { const s = _M.sel; _M.sel = null; mapSelect(s.type, s.id, { fly: false }); }
+  if (first && _M.ready) { /* initial view stays on Rwanda */ }
+}
+// Is anything different? One tiny request; only then download everything.
+async function _pulse(force) {
+  if (_currentPage !== 'map' || document.hidden || !_M.map) return;
+  const r = await apiGet('track', 'pulse');
+  if (!r.ok) { _setLive('Offline · retrying…', true); return; }
+  if (force || r.v !== _M.pulseV) { _M.pulseV = r.v; await _fetchOverview(false); }
+  else _setLive('Live · nothing new · checked ' + new Date().toLocaleTimeString('en-RW', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+}
+function _setLive(t, bad) {
+  const el = document.getElementById('mapLiveText'); if (el) el.textContent = t;
+  const p = document.querySelector('.live-pulse'); if (p) p.classList.toggle('bad', !!bad);
+}
 
-  // Assign locations to clients
-  _allMapClients.forEach((c, i) => {
-    const loc = RWANDA_LOCATIONS[i % RWANDA_LOCATIONS.length];
-    c._lat  = loc.lat + (Math.random() - 0.5) * 0.025;
-    c._lng  = loc.lng + (Math.random() - 0.5) * 0.025;
-    c._city = loc.city;
+// What changed since the last look: feeds the Live tab and pops up the important ones
+function _diffEvents(a, b) {
+  const old = {}; a.devices.forEach(d => old[d.id] = d);
+  const oldC = {}; a.clients.forEach(c => oldC[c.id] = c);
+  b.clients.forEach(c => {
+    const o = oldC[c.id];
+    if (!o) _ev(`New client: ${c.business_name}`, 'info');
+    else if (o.lat === null && c.lat !== null) _ev(`${c.business_name} was placed on the map`, 'info');
+    else if (o.status !== c.status) _ev(`${c.business_name} is now ${c.status}`, c.status === 'active' ? 'ok' : 'warn');
   });
-
-  initMainMap();
-  renderMapMarkers(_allMapClients);
-  updateMapStats(_allMapClients);
-  renderMapSidebar(_allMapClients);
-  populateDistSelect(_allMapClients);
-
-  // Try to get real GPS location
-  locateMe(true); // silent=true (no alert if fails)
-}
-
-// ── INIT MAP ──────────────────────────────────────
-function initMainMap() {
-  if (_mainMap) return;
-
-  _mainMap = L.map('mainMapContainer', {
-    center: RWANDA_CENTER,
-    zoom:   RWANDA_ZOOM,
-    zoomControl: false,
-    attributionControl: true,
-  });
-
-  // Zoom top-right
-  L.control.zoom({ position: 'topright' }).addTo(_mainMap);
-
-  // Scale control
-  L.control.scale({ position: 'bottomright', imperial: false }).addTo(_mainMap);
-
-  // Default tile
-  _tileLayer = L.tileLayer(TILES.dark.url, {
-    attribution: TILES.dark.attr,
-    subdomains: 'abcd',
-    maxZoom: 19,
-  }).addTo(_mainMap);
-}
-
-// ── GPS LOCATION ──────────────────────────────────
-function locateMe(silent = false) {
-  if (!navigator.geolocation) {
-    if (!silent) toast('Geolocation not supported by this browser', 'error');
-    return;
-  }
-
-  if (!silent) toast('Finding your location...', 'info');
-
-  navigator.geolocation.getCurrentPosition(
-    pos => {
-      const lat = pos.coords.latitude;
-      const lng = pos.coords.longitude;
-      _userLatLng = [lat, lng];
-
-      // Remove old user marker
-      if (_userMarker) _mainMap.removeLayer(_userMarker);
-
-      // Add pulsing user location marker
-      const userIcon = L.divIcon({
-        className: '',
-        html: `
-          <div style="position:relative;width:28px;height:28px;display:flex;align-items:center;justify-content:center">
-            <div style="position:absolute;width:28px;height:28px;border-radius:50%;background:rgba(77,158,255,0.3);animation:userPulse 2s infinite"></div>
-            <div style="position:absolute;width:18px;height:18px;border-radius:50%;background:rgba(77,158,255,0.5);animation:userPulse 2s infinite 0.5s"></div>
-            <div style="width:12px;height:12px;border-radius:50%;background:#4D9EFF;border:2.5px solid #fff;box-shadow:0 0 12px #4D9EFF;z-index:2"></div>
-          </div>
-          <style>
-            @keyframes userPulse{0%,100%{transform:scale(0.8);opacity:0.6}50%{transform:scale(1.3);opacity:0.2}}
-          </style>
-        `,
-        iconSize: [28, 28],
-        iconAnchor: [14, 14],
-      });
-
-      _userMarker = L.marker([lat, lng], { icon: userIcon })
-        .addTo(_mainMap)
-        .bindPopup(`
-          <div style="font-family:Inter,sans-serif;padding:10px;min-width:160px;background:#131C2E;border-radius:10px">
-            <div style="font-weight:700;color:#4D9EFF;margin-bottom:4px">📍 Your Location</div>
-            <div style="font-size:11px;color:#7B8CAA">Lat: ${lat.toFixed(6)}</div>
-            <div style="font-size:11px;color:#7B8CAA">Lng: ${lng.toFixed(6)}</div>
-            <div style="font-size:11px;color:#7B8CAA">Accuracy: ~${Math.round(pos.coords.accuracy)}m</div>
-          </div>
-        `, { className: 'ims-popup' });
-
-      _mainMap.flyTo([lat, lng], 13, { duration: 1.5 });
-      if (!silent) toast('Location found ✅');
-    },
-    err => {
-      if (!silent) {
-        const msgs = {1:'Location access denied',2:'Location unavailable',3:'Location request timed out'};
-        toast(msgs[err.code] || 'Could not get location', 'error');
-        // Use Kigali as fallback
-        _userLatLng = RWANDA_CENTER;
-      }
-    },
-    { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
-  );
-}
-
-// ── SWITCH TILES ──────────────────────────────────
-function switchTile(type) {
-  _currentTile = type;
-  if (!_mainMap) return;
-
-  if (_tileLayer) { _mainMap.removeLayer(_tileLayer); _tileLayer = null; }
-  if (_labelLayer) { _mainMap.removeLayer(_labelLayer); _labelLayer = null; }
-
-  _tileLayer = L.tileLayer(TILES[type]?.url || TILES.dark.url, {
-    attribution: TILES[type]?.attr || TILES.dark.attr,
-    subdomains: 'abcd',
-    maxZoom: 19,
-  }).addTo(_mainMap);
-  _tileLayer.bringToBack();
-
-  // For satellite: add label overlay
-  if (type === 'satellite') {
-    _labelLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png', {
-      subdomains: 'abcd', maxZoom: 19, opacity: 0.9,
-    }).addTo(_mainMap);
-  }
-
-  document.querySelectorAll('.map-tile-btn').forEach(b => b.classList.remove('active'));
-  const btn = document.getElementById('tileBtn_' + type);
-  if (btn) btn.classList.add('active');
-}
-
-// ── BUILD GLOWING MARKER HTML ─────────────────────
-function buildPinHtml(color, delay = 0) {
-  return `
-    <div style="position:relative;width:50px;height:50px;display:flex;align-items:center;justify-content:center">
-      <div style="position:absolute;width:44px;height:44px;border-radius:50%;background:${color};opacity:0;transform:translate(-50%,-50%);top:50%;left:50%;animation:pinRing1 2.5s ease-out infinite ${delay}s"></div>
-      <div style="position:absolute;width:30px;height:30px;border-radius:50%;background:${color};opacity:0;transform:translate(-50%,-50%);top:50%;left:50%;animation:pinRing2 2.5s ease-out infinite ${delay+0.4}s"></div>
-      <div style="position:absolute;width:20px;height:20px;border-radius:50%;border:2px solid rgba(255,255,255,0.5);background:${color}33;transform:translate(-50%,-50%);top:50%;left:50%"></div>
-      <div style="position:absolute;width:10px;height:10px;border-radius:50%;background:${color};box-shadow:0 0 10px ${color},0 0 20px ${color}66;transform:translate(-50%,-50%);top:50%;left:50%"></div>
-    </div>
-  `;
-}
-
-// ── RENDER CLIENT MARKERS ─────────────────────────
-function renderMapMarkers(clients) {
-  if (!_mainMap) return;
-  _mapMarkers.forEach(m => _mainMap.removeLayer(m));
-  _mapMarkers = [];
-
-  const pinEl = document.getElementById('mapPinCount');
-  if (pinEl) pinEl.textContent = clients.length + (clients.length === 1 ? ' client' : ' clients');
-
-  if (!clients.length) return;
-
-  const bounds = [];
-
-  clients.forEach((client, i) => {
-    if (!client._lat) {
-      const loc = RWANDA_LOCATIONS[i % RWANDA_LOCATIONS.length];
-      client._lat  = loc.lat + (Math.random() - 0.5) * 0.025;
-      client._lng  = loc.lng + (Math.random() - 0.5) * 0.025;
-      client._city = loc.city;
-    }
-
-    const color = STATUS_COLORS[client.status] || '#7B8CAA';
-    const delay = (i % 5) * 0.4;
-    bounds.push([client._lat, client._lng]);
-
-    const icon = L.divIcon({
-      className: '',
-      html: buildPinHtml(color, delay),
-      iconSize: [50, 50],
-      iconAnchor: [25, 25],
-      popupAnchor: [0, -30],
-    });
-
-    const marker = L.marker([client._lat, client._lng], { icon }).addTo(_mainMap);
-
-    // Days left calculation
-    const daysLeft = client.expiryDate
-      ? Math.ceil((new Date(client.expiryDate) - new Date()) / 86400000)
-      : null;
-    const daysHtml = daysLeft !== null
-      ? daysLeft > 0
-        ? `<span style="color:${daysLeft <= 7 ? '#FF8C42' : '#00D084'};font-weight:700">${daysLeft}d left</span>`
-        : `<span style="color:#FF4D6D;font-weight:700">Expired</span>`
-      : '—';
-
-    const lastSync = client.lastSync
-      ? new Date(client.lastSync).toLocaleDateString('en-RW')
-      : 'Never';
-
-    marker.bindPopup(`
-      <div style="font-family:'Inter',sans-serif">
-        <!-- Header -->
-        <div style="background:linear-gradient(135deg,${color}33,${color}11);padding:14px;border-bottom:1px solid ${color}22">
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-            <div style="width:40px;height:40px;border-radius:10px;background:${color}33;border:1.5px solid ${color}66;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:${color};flex-shrink:0">
-              ${(client.businessName||'?').substring(0,2).toUpperCase()}
-            </div>
-            <div>
-              <div style="font-weight:700;font-size:13px;color:#E8EDF5">${esc(client.businessName)}</div>
-              <div style="font-size:10px;color:#7B8CAA;margin-top:1px">📍 ${esc(client.location || client._city + ', Rwanda')}</div>
-            </div>
-          </div>
-          <span style="background:${color}22;color:${color};font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px;border:1px solid ${color}44">● ${(client.status||'').toUpperCase()}</span>
-        </div>
-
-        <!-- Info grid -->
-        <div style="padding:12px 14px">
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px">
-            <div style="background:rgba(255,255,255,0.05);border-radius:7px;padding:7px;text-align:center">
-              <div style="font-size:9px;color:#7B8CAA;text-transform:uppercase">Plan</div>
-              <div style="font-size:12px;font-weight:700;color:#E8EDF5">${esc(client.planName||'—')}</div>
-            </div>
-            <div style="background:rgba(255,255,255,0.05);border-radius:7px;padding:7px;text-align:center">
-              <div style="font-size:9px;color:#7B8CAA;text-transform:uppercase">Devices</div>
-              <div style="font-size:12px;font-weight:700;color:#E8EDF5">${client.activeDevices||0}/${client.maxDevices||0}</div>
-            </div>
-            <div style="background:rgba(255,255,255,0.05);border-radius:7px;padding:7px;text-align:center">
-              <div style="font-size:9px;color:#7B8CAA;text-transform:uppercase">Days Left</div>
-              <div style="font-size:11px;margin-top:2px">${daysHtml}</div>
-            </div>
-            <div style="background:rgba(255,255,255,0.05);border-radius:7px;padding:7px;text-align:center">
-              <div style="font-size:9px;color:#7B8CAA;text-transform:uppercase">Last Sync</div>
-              <div style="font-size:10px;font-weight:600;color:#E8EDF5">${lastSync}</div>
-            </div>
-          </div>
-
-          <div style="font-size:11px;color:#7B8CAA;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid rgba(255,255,255,0.06)">
-            ${client.contactPhone ? `📞 <span style="color:#E8EDF5">${esc(client.contactPhone)}</span><br>` : ''}
-            ${client.contactEmail ? `📧 <span style="color:#E8EDF5">${esc(client.contactEmail)}</span>` : ''}
-          </div>
-
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
-            <button onclick="getDirectionsTo(${i})" style="background:rgba(77,158,255,0.15);border:1px solid rgba(77,158,255,0.3);color:#4D9EFF;border-radius:7px;padding:8px;font-size:11px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif">
-              🧭 Directions
-            </button>
-            <button onclick="showPage('payments')" style="background:rgba(0,208,132,0.15);border:1px solid rgba(0,208,132,0.3);color:#00D084;border-radius:7px;padding:8px;font-size:11px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif">
-              💰 Pay
-            </button>
-          </div>
-        </div>
-      </div>
-    `, { className: 'ims-popup', maxWidth: 260, minWidth: 250 });
-
-    marker.bindTooltip(`
-      <div style="display:flex;align-items:center;gap:6px">
-        <div style="width:8px;height:8px;border-radius:50%;background:${color};box-shadow:0 0 6px ${color}"></div>
-        <strong>${esc(client.businessName)}</strong>
-        <span style="opacity:.6;font-size:10px">${esc(client._city)}</span>
-      </div>
-    `, { className: 'ims-tooltip', offset: [0, -30], direction: 'top' });
-
-    _mapMarkers.push(marker);
-  });
-
-  if (bounds.length > 0) {
-    try {
-      _mainMap.fitBounds(bounds, { padding: [50, 50], maxZoom: 12, animate: true });
-    } catch(e) {
-      _mainMap.setView(RWANDA_CENTER, RWANDA_ZOOM);
-    }
-  }
-}
-
-// ── GET DIRECTIONS ────────────────────────────────
-async function getDirectionsTo(clientIndex) {
-  const client = _allMapClients[clientIndex];
-  if (!client || !client._lat) return;
-
-  _destClient = client;
-  _mainMap.closePopup();
-
-  // Show panel
-  const panel = document.getElementById('directionsPanel');
-  if (panel) panel.style.display = 'block';
-
-  // Update labels
-  const fromLat = _userLatLng ? _userLatLng[0] : RWANDA_CENTER[0];
-  const fromLng = _userLatLng ? _userLatLng[1] : RWANDA_CENTER[1];
-
-  document.getElementById('dirFrom').textContent = _userLatLng ? `📍 Your Location (${fromLat.toFixed(4)}, ${fromLng.toFixed(4)})` : '📍 Kigali, Rwanda (default)';
-  document.getElementById('dirTo').textContent = `🏢 ${client.businessName} — ${client.location || client._city}`;
-  document.getElementById('dirToShort').textContent = client.businessName;
-
-  // Draw routes
-  await drawRoutes([fromLat, fromLng], [client._lat, client._lng], client);
-
-  // Scroll to panel
-  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-}
-
-// ── DRAW ROUTES ───────────────────────────────────
-async function drawRoutes(from, to, client) {
-  // Clear old routes
-  _routeLayers.forEach(l => _mainMap.removeLayer(l));
-  _routeLayers = [];
-  _currentRoutes = [];
-
-  toast('Calculating routes...', 'info');
-
-  try {
-    const url = `https://router.project-osrm.org/route/v1/driving/${from[1]},${from[0]};${to[1]},${to[0]}?alternatives=2&geometries=geojson&overview=full&steps=true`;
-    const res = await fetch(url);
-    const data = await res.json();
-
-    if (data.routes && data.routes.length > 0) {
-      _currentRoutes = data.routes;
-
-      const routeColors = ['#4D9EFF', '#00D084', '#FF8C42'];
-      const routeLabels = ['Fastest', 'Shortest', 'Alt Route'];
-
-      data.routes.forEach((route, i) => {
-        const layer = L.geoJSON(route.geometry, {
-          style: {
-            color: routeColors[i],
-            weight: i === 0 ? 6 : 4,
-            opacity: i === 0 ? 0.9 : 0.35,
-            dashArray: i === 0 ? null : (i === 1 ? '10,5' : '4,10'),
-            lineCap: 'round',
-            lineJoin: 'round',
-          }
-        }).addTo(_mainMap);
-
-        _routeLayers.push(layer);
-
-        const mins  = Math.round(route.duration / 60);
-        const km    = (route.distance / 1000).toFixed(1);
-        const hours = mins >= 60 ? `${Math.floor(mins/60)}h ${mins%60}m` : `${mins} min`;
-
-        if (document.getElementById(`route${i}Time`))
-          document.getElementById(`route${i}Time`).textContent = hours;
-        if (document.getElementById(`route${i}Dist`))
-          document.getElementById(`route${i}Dist`).textContent = `${km} km`;
-      });
-
-      // Summary (fastest route)
-      const fastest = data.routes[0];
-      const fMins   = Math.round(fastest.duration / 60);
-      const fKm     = (fastest.distance / 1000).toFixed(1);
-      document.getElementById('dirSummaryTime').textContent = fMins + ' min';
-      document.getElementById('dirSummaryDist').textContent = fKm + ' km';
-
-      // Fit to fastest route
-      _mainMap.fitBounds(_routeLayers[0].getBounds().pad(0.15));
-      toast('Routes calculated ✅');
-    } else {
-      fallbackRoute(from, to);
-    }
-  } catch(e) {
-    console.warn('OSRM unavailable:', e.message);
-    fallbackRoute(from, to);
-  }
-}
-
-function fallbackRoute(from, to) {
-  // Draw straight line as fallback
-  const line = L.polyline([from, to], {
-    color: '#4D9EFF', weight: 5, opacity: 0.7, dashArray: '10,5'
-  }).addTo(_mainMap);
-  _routeLayers.push(line);
-
-  const dist = _mainMap.distance(from, to);
-  const km   = (dist / 1000).toFixed(1);
-  const mins = Math.round(dist / 400); // rough estimate
-
-  ['0','1','2'].forEach((n, i) => {
-    const el  = document.getElementById(`route${n}Time`);
-    const elD = document.getElementById(`route${n}Dist`);
-    if (el)  el.textContent  = (mins + i * 4) + ' min';
-    if (elD) elD.textContent = km + ' km';
-  });
-
-  document.getElementById('dirSummaryTime').textContent = mins + ' min';
-  document.getElementById('dirSummaryDist').textContent = km + ' km';
-
-  _mainMap.fitBounds([[from[0],from[1]],[to[0],to[1]]], { padding:[40,40] });
-  toast('Approximate route shown (offline mode)', 'warning');
-}
-
-// ── SELECT ROUTE ──────────────────────────────────
-function selectRoute(idx, btn) {
-  _selectedRoute = idx;
-
-  document.querySelectorAll('.route-card').forEach((c, i) => {
-    c.classList.toggle('active-route', i === idx);
-  });
-
-  _routeLayers.forEach((layer, i) => {
-    layer.setStyle({
-      opacity: i === idx ? 0.9 : 0.25,
-      weight:  i === idx ? 6 : 3,
-    });
-    if (i === idx) layer.bringToFront();
+  b.devices.forEach(d => {
+    const o = old[d.id]; const nm = `${imsDeviceLabel(d)} (${_clientName(d)})`;
+    if (!o) { _ev(`New device: ${nm}`, 'info'); return; }
+    if (!o.lost && d.lost) _ev(`${nm} was marked lost`, 'bad', true);
+    if (o.lost && !d.lost) _ev(`${nm} was found`, 'ok');
+    if (!o.away && d.away) _ev(`${nm} is ${_fmtKm(d.distanceKm)} from the business`, 'warn', true);
+    if (o.status !== d.status) _ev(`${nm} is now ${d.status}`, d.status === 'approved' ? 'ok' : 'warn');
+    if (d.lat !== null && (o.lat === null || _km([o.lat, o.lng], [d.lat, d.lng]) > 0.02)) _ev(`${nm} moved${d.distanceKm !== null ? ', ' + _fmtKm(d.distanceKm) + ' from the shop' : ''}`, 'move');
   });
 }
-
-function closeDirections() {
-  const panel = document.getElementById('directionsPanel');
-  if (panel) panel.style.display = 'none';
-  _routeLayers.forEach(l => _mainMap.removeLayer(l));
-  _routeLayers = [];
-  _mainMap.setView(RWANDA_CENTER, RWANDA_ZOOM, { animate: true });
+function _ev(text, kind, important) {
+  _M.events.unshift({ t: new Date(), text, kind });
+  _M.events.length = Math.min(_M.events.length, 60);
+  if (_M.tab !== 'live') { _M.unseen++; const c = document.getElementById('liveCount'); c.style.display = ''; c.textContent = _M.unseen; }
+  else _renderList();
+  if (important) toast(text, kind === 'bad' ? 'error' : 'warning');
 }
 
-function startNavigation() {
-  if (!_destClient) return;
-  const fromLat = _userLatLng ? _userLatLng[0] : RWANDA_CENTER[0];
-  const fromLng = _userLatLng ? _userLatLng[1] : RWANDA_CENTER[1];
-  const url = `https://www.google.com/maps/dir/?api=1&origin=${fromLat},${fromLng}&destination=${_destClient._lat},${_destClient._lng}&travelmode=driving`;
-  window.open(url, '_blank');
+function _renderStats() {
+  const s = _M.data.stats || {};
+  document.getElementById('msClients').textContent = (s.placed || 0) + '/' + (s.clients || 0);
+  document.getElementById('msLive').textContent = _M.data.devices.filter(d => _fr(d) === 'live').length;
+  document.getElementById('msAway').textContent = s.away || 0;
+  document.getElementById('msLost').textContent = s.lost || 0;
+  document.querySelector('.ms.away').classList.toggle('hot', (s.away || 0) > 0);
+  document.querySelector('.ms.lost').classList.toggle('hot', (s.lost || 0) > 0);
+}
+function _refreshFresh() {
+  Object.keys(_M.mk.device).forEach(id => { const d = _device(+id); if (d) _styleDevice(_M.mk.device[id].getElement(), d); });
+  Object.keys(_M.mk.client).forEach(id => { const c = _client(+id); if (c) _styleClient(_M.mk.client[id].getElement(), c); });
+  _renderStats(); _renderList();
 }
 
-// ── DISTANCE CALCULATOR ───────────────────────────
-function populateDistSelect(clients) {
-  const sel = document.getElementById('distClientSelect');
-  if (!sel) return;
-  sel.innerHTML = '<option value="">Choose client...</option>' +
-    clients.map((c, i) => `<option value="${i}">${esc(c.businessName)} — ${esc(c._city)}</option>`).join('');
+// ── markers (HTML pins with glow) ─────────────────
+const _SVG = {
+  shop:  '<svg viewBox="0 0 24 24"><path d="M4 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16M16 9h2a2 2 0 0 1 2 2v10M2 21h20M8 7h4M8 11h4M8 15h4"/></svg>',
+  phone: '<svg viewBox="0 0 24 24"><path d="M7 2h10a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zM11 18h2"/></svg>',
+  warn:  '<svg viewBox="0 0 24 24"><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0zM12 9v4M12 17h.01"/></svg>',
+  bang:  '<svg viewBox="0 0 24 24"><path d="M12 5v9M12 18.5h.01"/></svg>',
+  globe: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><path d="M2.5 12h19M12 2.5a14 14 0 0 1 0 19 14 14 0 0 1 0-19z"/></svg>',
+};
+// Replace our classes but keep the ones MapLibre puts on a marker (positioning), otherwise the pin drifts when zooming
+function _setCls(el, cls) {
+  const keep = Array.from(el.classList).filter(k => k.indexOf('maplibregl-') === 0);
+  el.className = keep.concat(cls.split(' ')).join(' ');
+}
+function _clientEl(c) {
+  const el = document.createElement('div');
+  el.addEventListener('click', e => { e.stopPropagation(); mapSelect('client', c.id); });
+  _styleClient(el, c);
+  return el;
+}
+function _styleClient(el, c) {
+  const att = _attention(c);
+  const kind = att === 'bad' ? 'bad' : att === 'warn' ? 'warn' : c.status === 'trial' ? 'trial' : 'client';
+  const sel = _M.sel && _M.sel.type === 'client' && _M.sel.id === c.id ? ' sel' : '';
+  const on = _clientOnline(c);
+  _setCls(el, `pin pin-client k-${kind}${sel}`);
+  el.innerHTML = `<div class="pin-bubble"><b>${esc(c.business_name)}</b><span class="${on ? 'on' : 'off'}"><i></i>${on ? 'Online' : c.devices ? 'Offline' : 'No devices'}</span><u>›</u></div>
+    <div class="pin-head">${att ? _SVG.bang : _SVG.shop}</div><div class="pin-tail"></div><div class="pin-ring"></div>`;
+}
+function _deviceEl(d) {
+  const el = document.createElement('div');
+  el.addEventListener('click', e => { e.stopPropagation(); mapSelect('device', d.id); });
+  _styleDevice(el, d);
+  return el;
+}
+function _styleDevice(el, d) {
+  const fr = _fr(d); const sel = _M.sel && _M.sel.type === 'device' && _M.sel.id === d.id ? ' sel' : '';
+  _setCls(el, `pin pin-dev fr-${fr}${d.away ? ' away' : ''}${sel}`);
+  el.innerHTML = `<div class="pin-bubble"><b>${esc(imsDeviceLabel(d))}</b><span class="${fr === 'live' ? 'on' : 'off'}"><i></i>${d.lost ? 'Lost' : fr === 'live' ? 'Live' : _ago(_age(d))}</span><u>›</u></div>
+    <div class="dev-core">${fr === 'lost' ? _SVG.warn : _SVG.phone}</div><div class="dev-ripple"></div><div class="dev-ripple r2"></div>`;
 }
 
-async function calculateDistance() {
-  const sel = document.getElementById('distClientSelect');
-  const idx = parseInt(sel?.value);
-  if (isNaN(idx) || idx < 0) { toast('Select a client first', 'error'); return; }
-  const client = _allMapClients[idx];
-  if (!client) return;
-  await getDirectionsTo(idx);
-  focusClient(idx);
+// Create, move or remove markers so they match the latest data
+function _applyData() {
+  const m = _M.map;
+  const seenC = {}, seenD = {};
+  _M.data.clients.forEach(c => {
+    if (c.lat === null) return; seenC[c.id] = 1;
+    let mk = _M.mk.client[c.id];
+    if (!mk) { mk = new maplibregl.Marker({ element: _clientEl(c), anchor: 'bottom', offset: [0, 13], draggable: false }).setLngLat([c.lng, c.lat]).addTo(m); _M.mk.client[c.id] = mk; _pop(mk); }
+    else { _styleClient(mk.getElement(), c); _glide(mk, [c.lng, c.lat]); }
+  });
+  _M.data.devices.forEach(d => {
+    if (d.lat === null) return; seenD[d.id] = 1;
+    let mk = _M.mk.device[d.id];
+    if (!mk) { mk = new maplibregl.Marker({ element: _deviceEl(d), anchor: 'center' }).setLngLat([d.lng, d.lat]).addTo(m); _M.mk.device[d.id] = mk; _pop(mk); }
+    else { _styleDevice(mk.getElement(), d); _glide(mk, [d.lng, d.lat]); }
+  });
+  Object.keys(_M.mk.client).forEach(id => { if (!seenC[id]) { _M.mk.client[id].remove(); delete _M.mk.client[id]; } });
+  Object.keys(_M.mk.device).forEach(id => { if (!seenD[id]) { _M.mk.device[id].remove(); delete _M.mk.device[id]; } });
+  _drawAlerts(); _cluster(); _scheduleInsights();
 }
-
-function openInGoogleMaps() {
-  const sel = document.getElementById('distClientSelect');
-  const idx = parseInt(sel?.value);
-  const client = idx >= 0 ? _allMapClients[idx] : null;
-  if (client && client._lat) {
-    window.open(`https://www.google.com/maps/search/?api=1&query=${client._lat},${client._lng}`, '_blank');
-  } else {
-    window.open('https://www.google.com/maps/@-1.9441,30.0619,12z', '_blank');
-  }
-}
-
-// ── SEARCH / GEOCODING ────────────────────────────
-function mapSearch(q) {
-  if (!q || q.length < 2) { renderMapSidebar(_allMapClients); return; }
-  const lq = q.toLowerCase();
-  const filtered = _allMapClients.filter(c =>
-    c.businessName?.toLowerCase().includes(lq) ||
-    (c.location || '').toLowerCase().includes(lq) ||
-    (c._city || '').toLowerCase().includes(lq)
-  );
-  renderMapSidebar(filtered);
-}
-
-async function geocodeSearch(q) {
-  if (!q) return;
-  try {
-    // Search client names first
-    const lq = q.toLowerCase();
-    const client = _allMapClients.find(c => c.businessName?.toLowerCase().includes(lq));
-    if (client) {
-      const idx = _allMapClients.indexOf(client);
-      focusClient(idx);
-      return;
-    }
-
-    // Geocode using Nominatim (free)
-    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q + ', Rwanda')}&format=json&limit=1`;
-    const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
-    const data = await res.json();
-    if (data && data[0]) {
-      const lat = parseFloat(data[0].lat);
-      const lng = parseFloat(data[0].lon);
-      _mainMap.flyTo([lat, lng], 14, { duration: 1.5 });
-
-      L.popup({ className: 'ims-popup' })
-        .setLatLng([lat, lng])
-        .setContent(`<div style="padding:10px;font-family:'Inter',sans-serif;color:#E8EDF5"><strong>🔍 ${esc(data[0].display_name.split(',')[0])}</strong><br><span style="font-size:10px;color:#7B8CAA">${esc(data[0].display_name)}</span></div>`)
-        .openOn(_mainMap);
-    } else {
-      toast('Location not found', 'warning');
-    }
-  } catch(e) {
-    toast('Search error', 'error');
-  }
-}
-
-// ── NEARBY PLACES ─────────────────────────────────
-async function findNearby(type) {
-  // Clear previous nearby markers
-  _nearbyMarkers.forEach(m => _mainMap.removeLayer(m));
-  _nearbyMarkers = [];
-
-  const center = _mainMap.getCenter();
-  const lat = center.lat;
-  const lng = center.lng;
-  const radius = 2000; // 2km
-
-  const typeLabels = {
-    restaurant: { emoji:'🍽️', label:'Restaurant', color:'#FF8C42' },
-    hotel:      { emoji:'🏨', label:'Hotel',      color:'#A855F7' },
-    gas_station:{ emoji:'⛽', label:'Gas Station',color:'#F59E0B' },
-    bank:       { emoji:'🏦', label:'Bank',       color:'#4D9EFF' },
-    hospital:   { emoji:'🏥', label:'Hospital',   color:'#FF4D6D' },
-    pharmacy:   { emoji:'💊', label:'Pharmacy',   color:'#00D084' },
+function _pop(mk) { const el = mk.getElement(); el.classList.add('pop'); setTimeout(() => el.classList.remove('pop'), 900); }
+// Slide a marker to its new spot instead of jumping
+function _glide(mk, to) {
+  const from = mk.getLngLat();
+  if (Math.abs(from.lng - to[0]) < 1e-7 && Math.abs(from.lat - to[1]) < 1e-7) return;
+  const t0 = performance.now(), dur = 1400;
+  const step = now => {
+    const k = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+    mk.setLngLat([from.lng + (to[0] - from.lng) * e, from.lat + (to[1] - from.lat) * e]);
+    if (k < 1) requestAnimationFrame(step); else _clusterSoon();
   };
+  requestAnimationFrame(step);
+  const el = mk.getElement(); el.classList.add('moved'); setTimeout(() => el.classList.remove('moved'), 1800);
+}
 
-  const info = typeLabels[type] || { emoji:'📍', label:type, color:'#7B8CAA' };
+// When zoomed far out, nearby pins merge into numbered bubbles
+let _clTimer = null;
+function _clusterSoon() { clearTimeout(_clTimer); _clTimer = setTimeout(_cluster, 120); }
+function _cluster() {
+  const m = _M.map; if (!m) return;
+  _M.clusters.forEach(c => c.remove()); _M.clusters = [];
+  const z = m.getZoom();
+  const all = [];
+  Object.keys(_M.mk.client).forEach(id => all.push({ type: 'client', id: +id, mk: _M.mk.client[id], on: _M.on.clients }));
+  Object.keys(_M.mk.device).forEach(id => all.push({ type: 'device', id: +id, mk: _M.mk.device[id], on: _M.on.devices }));
+  const cells = {};
+  all.forEach(a => {
+    const el = a.mk.getElement();
+    const selected = _M.sel && _M.sel.type === a.type && _M.sel.id === a.id;
+    if (!a.on) { el.style.display = 'none'; return; }
+    el.style.display = '';
+    if (z >= 11 || selected) return;
+    const p = m.project(a.mk.getLngLat()); const k = Math.floor(p.x / 64) + ',' + Math.floor(p.y / 64);
+    (cells[k] = cells[k] || []).push(a);
+  });
+  Object.keys(cells).forEach(k => {
+    const g = cells[k]; if (g.length < 2) return;
+    g.forEach(a => a.mk.getElement().style.display = 'none');
+    const lng = g.reduce((s, a) => s + a.mk.getLngLat().lng, 0) / g.length, lat = g.reduce((s, a) => s + a.mk.getLngLat().lat, 0) / g.length;
+    const nDev = g.filter(a => a.type === 'device').length, el = document.createElement('div');
+    el.className = 'pin-cluster ' + (nDev > g.length / 2 ? 'dv' : 'cl');
+    el.innerHTML = `<span>${g.length}</span>`;
+    el.addEventListener('click', e => { e.stopPropagation(); m.fitBounds(g.reduce((b, a) => b.extend(a.mk.getLngLat()), new maplibregl.LngLatBounds(g[0].mk.getLngLat(), g[0].mk.getLngLat())), { padding: 90, maxZoom: 14 }); });
+    _M.clusters.push(new maplibregl.Marker({ element: el }).setLngLat([lng, lat]).addTo(m));
+  });
+}
 
-  toast(`Finding nearby ${info.label}s...`, 'info');
-
-  try {
-    // Use Overpass API (free OpenStreetMap data)
-    const query = `[out:json][timeout:10];node["amenity"="${type}"](around:${radius},${lat},${lng});out 10;`;
-    const res = await fetch('https://overpass-api.de/api/interpreter?data=' + encodeURIComponent(query));
-    const data = await res.json();
-
-    if (data.elements && data.elements.length > 0) {
-      data.elements.forEach(place => {
-        const icon = L.divIcon({
-          className: '',
-          html: `<div style="background:${info.color};color:#fff;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:13px;border:2px solid rgba(255,255,255,0.6);box-shadow:0 4px 12px ${info.color}88">${info.emoji}</div>`,
-          iconSize: [28, 28],
-          iconAnchor: [14, 14],
-        });
-
-        const name = place.tags?.name || info.label;
-        const marker = L.marker([place.lat, place.lon], { icon })
-          .addTo(_mainMap)
-          .bindTooltip(`${info.emoji} ${name}`, { className: 'ims-tooltip' })
-          .bindPopup(`
-            <div style="font-family:'Inter',sans-serif;padding:10px;min-width:160px">
-              <div style="font-weight:700;color:#E8EDF5;margin-bottom:4px">${info.emoji} ${esc(name)}</div>
-              <div style="font-size:10px;color:#7B8CAA">${info.label}</div>
-              ${place.tags?.['addr:street'] ? `<div style="font-size:10px;color:#7B8CAA;margin-top:3px">📍 ${esc(place.tags['addr:street'])}</div>` : ''}
-              ${place.tags?.phone ? `<div style="font-size:10px;color:#7B8CAA;margin-top:2px">📞 ${esc(place.tags.phone)}</div>` : ''}
-              <button onclick="window.open('https://www.google.com/maps/search/?api=1&query=${place.lat},${place.lon}','_blank')" style="margin-top:8px;width:100%;background:rgba(77,158,255,0.2);border:1px solid rgba(77,158,255,0.3);color:#4D9EFF;border-radius:6px;padding:5px;font-size:11px;cursor:pointer;font-family:inherit">View on Google Maps</button>
-            </div>
-          `, { className: 'ims-popup' });
-        _nearbyMarkers.push(marker);
-      });
-
-      toast(`Found ${data.elements.length} nearby ${info.label}s ✅`);
-    } else {
-      toast(`No ${info.label}s found nearby`, 'warning');
+// Alert zones: a red area around lost devices, a dashed line from "away" devices back to their shop
+function _drawAlerts() {
+  const src = _M.map && _M.map.getSource('alerts'); if (!src) return;
+  const f = [];
+  _M.data.devices.forEach(d => {
+    if (d.lat === null) return;
+    if (d.lost) f.push({ type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [imsCircle(d.lng, d.lat, Math.max((d.accuracy || 0) / 1000, 0.35))] } });
+    else if (d.away) { const c = _client(d.clientId); if (c && c.lat !== null) f.push({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [[c.lng, c.lat], [d.lng, d.lat]] } }); }
+  });
+  src.setData({ type: 'FeatureCollection', features: f });
+}
+function _drawSelection(extra) {
+  const src = _M.map && _M.map.getSource('sel'); if (!src) return;
+  const f = extra || [];
+  if (_M.sel && !extra) {
+    if (_M.sel.type === 'client') { const c = _client(_M.sel.id); if (c && c.lat !== null) f.push({ type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [imsCircle(c.lng, c.lat, c.awayKm)] } }); }
+    else if (_M.sel.type === 'device') {
+      const d = _device(_M.sel.id);
+      if (d && d.lat !== null) {
+        if (d.accuracy) f.push({ type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [imsCircle(d.lng, d.lat, d.accuracy / 1000)] } });
+        const c = _client(d.clientId); if (c && c.lat !== null) f.push({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [[c.lng, c.lat], [d.lng, d.lat]] } });
+      }
     }
-  } catch(e) {
-    toast(`Could not load nearby ${info.label}s`, 'error');
   }
+  src.setData({ type: 'FeatureCollection', features: f });
 }
 
-// ── MAP STATS ─────────────────────────────────────
-function updateMapStats(clients) {
-  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-  set('mapStatActive',  clients.filter(c => c.status === 'active').length);
-  set('mapStatTrial',   clients.filter(c => c.status === 'trial').length);
-  set('mapStatExpired', clients.filter(c => c.status === 'expired').length);
-  set('mapStatTotal',   clients.length);
-  set('mapClientCount', clients.length + ' clients');
+// ── list (left) ───────────────────────────────────
+function mapTab(t) {
+  _M.tab = t;
+  if (t === 'live') { _M.unseen = 0; document.getElementById('liveCount').style.display = 'none'; }
+  document.querySelectorAll('.map-tabs .tab').forEach(x => x.classList.toggle('active', x.dataset.mt === t));
+  _renderList();
+}
+function mapSearchInput(v) { _M.query = (v || '').trim().toLowerCase(); _renderList(); }
+const _match = (...parts) => !_M.query || parts.join(' ').toLowerCase().includes(_M.query);
+const _selIs = (type, id) => _M.sel && _M.sel.type === type && _M.sel.id === id ? ' sel' : '';
+
+function _renderList() {
+  const el = document.getElementById('mapList'); if (!el) return;
+  const d = _M.data; let html = '';
+  if (_M.tab === 'clients') {
+    const rows = d.clients.filter(c => _match(c.business_name, c.location, c.contact_phone));
+    const placed = rows.filter(c => c.lat !== null), unplaced = rows.filter(c => c.lat === null);
+    html += placed.map(c => {
+      const att = _attention(c);
+      return `<div class="ml-item${_selIs('client', c.id)}" onclick="mapSelect('client',${c.id})">
+        <span class="ml-dot ${att ? 'att-' + att : 'st-' + c.status}"></span>
+        <div class="ml-main"><b>${esc(c.business_name)}</b><span>${esc(c.location || 'No address typed')}</span></div>
+        <div class="ml-side">${att ? `<span class="chip ${att === 'bad' ? 'bad' : 'warn'}">${att === 'bad' ? 'Locked' : _daysLeft(c) + ' d left'}</span>` : ''}${c.devices ? `<span class="chip">${c.devices} dev</span>` : ''}</div></div>`;
+    }).join('');
+    if (unplaced.length) html += `<div class="ml-head">Not on the map yet (${unplaced.length})</div>` + unplaced.map(c => `
+      <div class="ml-item warn${_selIs('client', c.id)}" onclick="mapSelect('client',${c.id})"><span class="ml-dot nopos"></span>
+        <div class="ml-main"><b>${esc(c.business_name)}</b><span>${esc(c.location || 'No address typed')}</span></div><div class="ml-side"><span class="chip warn">Place</span></div></div>`).join('');
+    if (!rows.length) html = '<div class="empty-state">No client matches.</div>';
+  } else if (_M.tab === 'devices') {
+    const rows = d.devices.filter(x => _match(imsDeviceLabel(x), _clientName(x), x.os, x.browser));
+    html = rows.map(x => `<div class="ml-item${_selIs('device', x.id)}" onclick="mapSelect('device',${x.id})"><span class="ml-dot fr-${_fr(x)}"></span>
+        <div class="ml-main"><b>${esc(imsDeviceLabel(x))}</b><span>${esc(_clientName(x))} · ${x.lat === null ? 'no position yet' : _ago(_age(x))}</span></div>
+        <div class="ml-side">${x.lost ? '<span class="chip bad">Lost</span>' : x.away ? '<span class="chip warn">Away</span>' : ''}</div></div>`).join('') || '<div class="empty-state">No device matches.</div>';
+  } else if (_M.tab === 'sites') {
+    const rows = d.deployments.filter(x => _match(x.name, x.client_name, x.url));
+    html = rows.map(x => `<div class="ml-item" onclick="mapSelect('site',${x.id})"><span class="ml-dot ${x.status === 'live' ? 'fr-live' : 'fr-stale'}"></span>
+        <div class="ml-main"><b>${esc(x.name)}</b><span>${esc(x.client_name)} · ${esc(x.product_name)}</span></div>
+        <div class="ml-side"><span class="chip ${x.status === 'live' ? '' : 'warn'}">${x.status === 'live' ? 'Live' : 'Paused'}</span></div></div>`).join('')
+      || '<div class="empty-state">No websites registered yet. Add them under Products &amp; updates.</div>';
+  } else {
+    html = _M.events.length ? _M.events.map(e => `<div class="ev ev-${e.kind}"><span class="ev-t">${e.t.toLocaleTimeString('en-RW', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span><span>${esc(e.text)}</span></div>`).join('')
+      : '<div class="empty-state">Quiet for now. New clients, devices, moves and alerts show up here the moment they happen, with no refresh needed.</div>';
+  }
+  if (_M.places && _M.query && _M.tab !== 'live') html = _M.places + html;
+  el.innerHTML = html;
 }
 
-// ── SIDEBAR ───────────────────────────────────────
-function renderMapSidebar(clients) {
-  const container = document.getElementById('mapClientList');
-  if (!container) return;
+// ── selection + detail card ───────────────────────
+function mapSelect(type, id, opts) {
+  opts = opts || { fly: true };
+  _stopPlacing(); _clearTrail();
+  _M.sel = { type, id };
+  const card = document.getElementById('mapDetail'); let html = '', ll = null;
+  if (type === 'client') { const c = _client(id); if (!c) return; html = _clientCard(c); if (c.lat !== null) ll = [c.lng, c.lat]; }
+  else if (type === 'device') { const d = _device(id); if (!d) return; html = _deviceCard(d); if (d.lat !== null) ll = [d.lng, d.lat]; }
+  else { const s = _M.data.deployments.find(x => x.id === id); if (!s) return; html = _siteCard(s); const c = _client(s.client_id); if (c && c.lat !== null) ll = [c.lng, c.lat]; }
+  card.innerHTML = html; card.style.display = 'block';
+  document.getElementById('mapLegend').classList.add('closed');
+  _drawSelection();
+  Object.keys(_M.mk.client).forEach(k => _styleClient(_M.mk.client[k].getElement(), _client(+k)));
+  Object.keys(_M.mk.device).forEach(k => _styleDevice(_M.mk.device[k].getElement(), _device(+k)));
+  _cluster(); _renderList();
+  if (ll && opts.fly !== false) _M.map.flyTo({ center: ll, zoom: Math.max(_M.map.getZoom(), type === 'site' ? 13 : 16), pitch: _M.pitch3d ? 58 : _M.map.getPitch(), speed: .9, essential: true });
+  _scheduleInsights();
+}
+function mapClose() {
+  _M.sel = null; _clearTrail();
+  document.getElementById('mapDetail').style.display = 'none';
+  document.getElementById('mapLegend').classList.remove('closed');
+  _drawSelection();
+  Object.keys(_M.mk.client).forEach(k => _styleClient(_M.mk.client[k].getElement(), _client(+k)));
+  Object.keys(_M.mk.device).forEach(k => _styleDevice(_M.mk.device[k].getElement(), _device(+k)));
+  _cluster(); _renderList(); _scheduleInsights();
+}
+const _row = (k, v) => v === '' || v === null || v === undefined ? '' : `<div class="dr"><span>${k}</span><b>${v}</b></div>`;
 
-  if (!clients.length) {
-    container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted)"><div style="font-size:32px;margin-bottom:8px">📍</div><p>No clients found</p></div>';
+function _clientCard(c) {
+  const devs = _M.data.devices.filter(d => d.clientId === c.id), placed = c.lat !== null, att = _attention(c), dl = _daysLeft(c);
+  return `
+    <div class="md-head">
+      <div class="md-ico k-${att === 'bad' ? 'bad' : att === 'warn' ? 'warn' : c.status === 'trial' ? 'trial' : 'client'}">${_SVG.shop}</div>
+      <div class="md-title"><b>${esc(c.business_name)}</b><span><span class="badge badge-${c.status === 'active' ? 'green' : c.status === 'trial' ? 'blue' : c.status === 'expired' ? 'red' : 'gray'}">${_ST[c.status] || c.status}</span> ${esc(c.product_name || '')}</span></div>
+      <button class="md-x" onclick="mapClose()" aria-label="Close">×</button>
+    </div>
+    <div class="md-body">
+      ${att ? `<div class="md-alert ${att === 'bad' ? 'bad' : ''}">${att === 'bad' ? 'Subscription ended. The app is locked until a payment is recorded.' : `Subscription ends in ${dl} day${dl === 1 ? '' : 's'}. Record a payment to renew.`}</div>` : ''}
+      ${_row('Address', esc(c.location || 'Not typed yet'))}
+      ${placed ? _row('Position', `${c.lat.toFixed(5)}, ${c.lng.toFixed(5)}`) : ''}
+      ${_row('Phone', c.contact_phone ? `<a href="tel:${esc(c.contact_phone)}">${esc(c.contact_phone)}</a>` : '')}
+      ${_row('Email', c.contact_email ? `<a href="mailto:${esc(c.contact_email)}">${esc(c.contact_email)}</a>` : '')}
+      ${_row('Plan', esc(c.plan_name || ''))}
+      ${_row('Ends', c.expiry_date ? fmtDate(c.expiry_date) : '')}
+      ${_row('Location tracking', c.trackingConsent ? '<span class="t-on">On: devices share their position</span>' : '<span class="t-off">Off: client has not agreed</span>')}
+      ${devs.length ? `<div class="md-sub">Devices (${devs.length})</div>` + devs.map(d => `
+        <div class="md-dev" onclick="mapSelect('device',${d.id})"><span class="ml-dot fr-${_fr(d)}"></span><b>${esc(imsDeviceLabel(d))}</b><span>${d.lat === null ? 'no position' : _ago(_age(d)) + (d.distanceKm !== null ? ' · ' + _fmtKm(d.distanceKm) : '')}</span></div>`).join('') : ''}
+      <div id="mdFind"></div>
+    </div>
+    <div class="md-actions">
+      ${placed ? `<a class="btn btn-primary btn-sm" href="${_gDir(c.lat, c.lng)}" target="_blank" rel="noopener">${ico('map')}Directions</a>
+        <a class="btn btn-ghost btn-sm" href="${_gOpen(c.lat, c.lng)}" target="_blank" rel="noopener">Google Maps</a>
+        <button class="btn btn-ghost btn-sm" onclick="mapMovePin(${c.id})">Move pin</button>
+        <button class="btn btn-ghost btn-sm" onclick="mapCopy('${c.lat.toFixed(6)}, ${c.lng.toFixed(6)}')">Copy position</button>`
+      : `<button class="btn btn-primary btn-sm" onclick="mapFindAddress(${c.id})">Find "${esc((c.location || '').slice(0, 22))}"</button>
+        <button class="btn btn-ghost btn-sm" onclick="mapPlaceStart(${c.id})">Click the map</button>`}
+      <button class="btn btn-ghost btn-sm" onclick="showPage('clients')">Open client</button>
+      <button class="btn btn-green btn-sm" onclick="showRecordPayment(${c.id})">Record payment</button>
+    </div>`;
+}
+
+function _deviceCard(d) {
+  const c = _client(d.clientId), hasPos = d.lat !== null, fr = _fr(d);
+  return `
+    <div class="md-head">
+      <div class="md-ico fr-${fr}">${fr === 'lost' ? _SVG.warn : _SVG.phone}</div>
+      <div class="md-title"><b>${esc(imsDeviceLabel(d))}</b><span>${esc(_clientName(d))}</span></div>
+      <button class="md-x" onclick="mapClose()" aria-label="Close">×</button>
+    </div>
+    <div class="md-body">
+      <div class="md-state fr-${fr}">${d.lost ? 'Marked lost' : _FR[fr]}${hasPos ? ' · ' + _ago(_age(d)) : ''}</div>
+      ${d.away ? `<div class="md-alert">${_fmtKm(d.distanceKm)} from the business. Outside its ${c.awayKm} km area.</div>` : ''}
+      ${d.lost && d.lost_note ? `<div class="md-alert bad">${esc(d.lost_note)}</div>` : ''}
+      ${hasPos ? _row('Position', `${d.lat.toFixed(5)}, ${d.lng.toFixed(5)}`) : '<div class="md-alert info">This device has not sent a position yet. ' + (c && c.trackingConsent ? 'It will after it next connects.' : 'Location tracking is off for this client.') + '</div>'}
+      ${_row('Accuracy', d.accuracy ? '± ' + d.accuracy + ' m' : '')}
+      ${_row('From business', d.distanceKm !== null ? _fmtKm(d.distanceKm) : '')}
+      ${_row('Source', d.source ? ({ gps: 'GPS', wifi: 'Wi-Fi', ip: 'Internet address' })[d.source] || d.source : '')}
+      ${_row('Battery', d.battery !== null ? d.battery + '%' : '')}
+      ${_row('System', esc([d.os, d.browser].filter(Boolean).join(' · ') || imsDeviceLabel(d)))}
+      ${_row('Product version', esc(d.app_version || ''))}
+      ${_row('Last contact', d.last_sync ? fmtDateTime(d.last_sync) : 'Never')}
+      ${_row('Internet address', esc(d.last_ip || ''))}
+      ${_row('Status', statusBadge(d.status))}
+    </div>
+    <div class="md-actions">
+      ${hasPos ? `<a class="btn btn-primary btn-sm" href="${_gDir(d.lat, d.lng)}" target="_blank" rel="noopener">${ico('map')}Directions</a>
+        <button class="btn btn-ghost btn-sm" onclick="mapTrail(${d.id},24)">Trail 24 h</button>
+        <button class="btn btn-ghost btn-sm" onclick="mapTrail(${d.id},168)">7 days</button>
+        <a class="btn btn-ghost btn-sm" href="${_gOpen(d.lat, d.lng)}" target="_blank" rel="noopener">Google Maps</a>
+        <button class="btn btn-ghost btn-sm" onclick="mapCopy('${d.lat.toFixed(6)}, ${d.lng.toFixed(6)}')">Copy position</button>` : ''}
+      ${d.lost ? `<button class="btn btn-green btn-sm" onclick="mapLost(${d.id},false)">Mark as found</button>` : `<button class="btn btn-red btn-sm" onclick="mapLost(${d.id},true)">Mark as lost</button>`}
+      ${d.status === 'approved' ? `<button class="btn btn-ghost btn-sm" onclick="mapBlock(${d.id})">Block device</button>` : ''}
+    </div>`;
+}
+
+function _siteCard(s) {
+  const c = _client(s.client_id);
+  return `
+    <div class="md-head">
+      <div class="md-ico fr-${s.status === 'live' ? 'live' : 'stale'}">${_SVG.globe}</div>
+      <div class="md-title"><b>${esc(s.name)}</b><span>${esc(s.product_name)} for ${esc(s.client_name)}</span></div>
+      <button class="md-x" onclick="mapClose()" aria-label="Close">×</button>
+    </div>
+    <div class="md-body">
+      ${_row('Status', s.status === 'live' ? '<span class="badge badge-green">Live</span>' : '<span class="badge badge-orange">Paused by us</span>')}
+      ${_row('Address', s.url ? `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.url)}</a>` : '')}
+      ${_row('Client location', c ? esc(c.location || '') : '')}
+      ${_row('Version', esc(s.version || ''))}
+      ${_row('Last check', s.last_check ? fmtDateTime(s.last_check) + (s.last_http ? ` · HTTP ${s.last_http} · ${s.last_ms} ms` : '') : 'Not checked yet')}
+      ${_row('Last seen by guard', s.last_seen ? fmtDateTime(s.last_seen) : '')}
+    </div>
+    <div class="md-actions">
+      ${c && c.lat !== null ? `<button class="btn btn-ghost btn-sm" onclick="mapSelect('client',${c.id})">Show client</button>` : ''}
+      <button class="btn btn-ghost btn-sm" onclick="showPage('products')">Manage</button>
+    </div>`;
+}
+
+// ── area insights: what is around the selected place ──
+function _scheduleInsights() { clearTimeout(_M.insightTimer); _M.insightTimer = setTimeout(_insights, 500); }
+function _insights() {
+  const box = document.getElementById('mapInsights'), m = _M.map;
+  if (!box || !m || !_M.ready || _M.style !== 'dark' || _currentPage !== 'map') { if (box) box.style.display = 'none'; return; }
+  let center = m.getCenter(), title = null;
+  if (_M.sel) {
+    const e = _M.sel.type === 'client' ? _client(_M.sel.id) : _M.sel.type === 'device' ? _device(_M.sel.id) : null;
+    const p = e && (_M.sel.type === 'client' ? [e.lng, e.lat] : [e.lng, e.lat]);
+    if (p && p[0] !== null) { center = { lng: p[0], lat: p[1] }; title = _M.sel.type === 'client' ? e.business_name : _clientName(e); }
+  }
+  box.style.display = 'block';
+  if (m.getZoom() < 13) {
+    box.innerHTML = `<div class="ai-head"><svg class="ic ic-sm"><use href="#i-chart"/></svg><b>Area insights</b></div><div class="ai-note">Zoom in to a neighbourhood, or pick a client, to see what is around it.</div>`;
     return;
   }
-
-  container.innerHTML = clients.map((c, i) => {
-    const realIdx = _allMapClients.indexOf(c);
-    const color   = STATUS_COLORS[c.status] || '#7B8CAA';
-    return `
-    <div onclick="focusClient(${realIdx})" style="display:flex;align-items:center;gap:9px;padding:9px 11px;background:var(--card2);border-radius:var(--r-sm);cursor:pointer;transition:all .15s;border:1px solid transparent"
-      onmouseover="this.style.borderColor='${color}55'" onmouseout="this.style.borderColor='transparent'">
-      <div style="position:relative;width:12px;height:12px;flex-shrink:0">
-        <div style="position:absolute;inset:0;border-radius:50%;background:${color};opacity:0.25;animation:sidebarDot 2s infinite ${(realIdx%5)*0.2}s"></div>
-        <div style="position:absolute;inset:2px;border-radius:50%;background:${color};box-shadow:0 0 6px ${color}"></div>
-      </div>
-      <div style="flex:1;min-width:0">
-        <div style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.businessName)}</div>
-        <div style="font-size:10px;color:var(--muted);margin-top:1px">📍 ${esc(c.location || c._city || 'Rwanda')}</div>
-      </div>
-      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0">
-        <span style="background:${color}20;color:${color};font-size:9px;font-weight:700;padding:2px 7px;border-radius:8px">${c.status||'?'}</span>
-        <button onclick="event.stopPropagation();getDirectionsTo(${realIdx})" style="background:none;border:none;color:var(--blue);font-size:9px;cursor:pointer;padding:0;font-family:inherit;font-weight:600">🧭 Route</button>
-      </div>
-    </div>`;
-  }).join('');
+  const R = 1, here = [center.lat, center.lng], seen = {}, g = { comp: 0, hotel: 0, fuel: 0, health: 0, bank: 0 };
+  const fc = m.querySourceFeatures('omt', { sourceLayer: 'poi' });
+  fc.forEach(f => {
+    const c = f.properties.class; const [lng, lat] = f.geometry.coordinates || [];
+    if (lng === undefined || _km(here, [lat, lng]) > R) return;
+    const key = (f.properties.name || '') + '|' + Math.round(lng * 1e4) + '|' + Math.round(lat * 1e4);
+    if (seen[key]) return; seen[key] = 1;
+    if (['bar', 'restaurant', 'fast_food', 'cafe', 'pub', 'biergarten', 'nightclub'].includes(c)) g.comp++;
+    else if (['lodging', 'hotel', 'hostel', 'guest_house'].includes(c)) g.hotel++;
+    else if (c === 'fuel') g.fuel++;
+    else if (['hospital', 'pharmacy', 'doctors', 'clinic'].includes(c)) g.health++;
+    else if (['bank', 'atm'].includes(c)) g.bank++;
+  });
+  let area = title;
+  if (!area) {
+    const pl = m.querySourceFeatures('omt', { sourceLayer: 'place' }).filter(f => f.geometry.type === 'Point' && f.properties.name)
+      .map(f => ({ n: f.properties.name_en || f.properties.name, d: _km(here, [f.geometry.coordinates[1], f.geometry.coordinates[0]]) })).sort((a, b) => a.d - b.d)[0];
+    area = pl ? pl.n : 'This area';
+  }
+  const ours = _M.data.devices.filter(d => d.lat !== null && _km(here, [d.lat, d.lng]) <= R).length;
+  const oursC = _M.data.clients.filter(c => c.lat !== null && _km(here, [c.lat, c.lng]) <= R).length;
+  const row = (c, n, l) => `<div class="ai-row"><i style="--c:${c}"></i><span>${l}</span><b>${n}</b></div>`;
+  box.innerHTML = `<div class="ai-head"><svg class="ic ic-sm"><use href="#i-chart"/></svg><b>Area insights</b><small>within ${R} km</small></div>
+    <div class="ai-area">${esc(area)}</div>
+    ${row(IMS_C.client, oursC, 'Our clients')}${row(IMS_C.live, ours, 'Our devices')}
+    <div class="ai-sep"></div>
+    ${row(IMS_C.comp, g.comp, 'Bars &amp; restaurants (competition)')}${row(IMS_C.hotel, g.hotel, 'Hotels &amp; lodges')}${row(IMS_C.fuel, g.fuel, 'Fuel stations')}${row(IMS_C.health, g.health, 'Health')}${row(IMS_C.bank, g.bank, 'Banks &amp; ATMs')}
+    <div class="ai-note">Counted from OpenStreetMap places currently on screen.</div>`;
 }
 
-// ── FOCUS CLIENT ──────────────────────────────────
-function focusClient(index) {
-  if (!_mainMap || !_mapMarkers[index]) return;
-  const marker = _mapMarkers[index];
-  _mainMap.flyTo(marker.getLatLng(), 15, { duration: 1.5, easeLinearity: 0.4 });
-  setTimeout(() => marker.openPopup(), 1600);
+// ── actions ───────────────────────────────────────
+const mapCopy = t => navigator.clipboard.writeText(t).then(() => toast('Position copied')).catch(() => toast('Could not copy', 'error'));
+function _clearTrail() { const s = _M.map && _M.map.getSource('trail'); if (s) s.setData({ type: 'FeatureCollection', features: [] }); }
+
+async function mapTrail(id, hours) {
+  const res = await apiGet('track', 'history', { deviceId: id, hours });
+  const pts = res.data || [];
+  if (pts.length < 2) { toast('No trail yet. The device needs to report from a few different places.', 'info'); return; }
+  const line = pts.map(p => [p.lng, p.lat]);
+  const feats = [{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: line } }]
+    .concat(pts.map((p, i) => ({ type: 'Feature', properties: { start: i === 0, end: i === pts.length - 1 }, geometry: { type: 'Point', coordinates: [p.lng, p.lat] } })));
+  _M.map.getSource('trail').setData({ type: 'FeatureCollection', features: feats });
+  _M.map.fitBounds(line.reduce((b, c) => b.extend(c), new maplibregl.LngLatBounds(line[0], line[0])), { padding: 120, maxZoom: 17 });
+  toast(`${pts.length} positions over the last ${hours >= 48 ? hours / 24 + ' days' : hours + ' hours'}`, 'success');
 }
 
-// ── FILTER ────────────────────────────────────────
-function filterMapByStatus(status, btn) {
-  document.querySelectorAll('.map-filter-btn').forEach(b => b.classList.remove('active'));
-  if (btn) btn.classList.add('active');
-  const filtered = status ? _allMapClients.filter(c => c.status === status) : _allMapClients;
-  renderMapMarkers(filtered);
-  renderMapSidebar(filtered);
-  updateMapStats(filtered);
+function mapLost(id, lost) {
+  const d = _device(id);
+  if (!lost) { api('track', 'set_lost', { deviceId: id, lost: false }).then(r => { toast(r.ok ? 'Marked as found. The device works normally again.' : (r.error || 'Failed'), r.ok ? 'success' : 'error'); _fetchOverview(); }); return; }
+  openModal('Mark device as lost',
+    `<div class="alert alert-orange"><div>The device shows a lock message the next time it connects, so nobody can use the product on it. Its position keeps updating here.</div></div>
+     <div class="form-group"><label class="form-label">Message shown on the device</label>
+     <textarea class="form-input" id="lostNote" rows="3">${esc('This device was reported lost. Please call ' + ((_client(d.clientId) || {}).contact_phone || 'IMS support') + ' to return it.')}</textarea></div>`,
+    `<button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-red" onclick="mapLostSave(${id})">Mark as lost</button>`);
+}
+async function mapLostSave(id) {
+  const r = await api('track', 'set_lost', { deviceId: id, lost: true, note: document.getElementById('lostNote').value.trim() });
+  closeModal(); toast(r.ok ? 'Marked as lost. It locks on its next connection.' : (r.error || 'Failed'), r.ok ? 'success' : 'error'); _fetchOverview();
+}
+async function mapBlock(id) { if (typeof blockDevice === 'function') { await blockDevice(id); _fetchOverview(); } }
+
+// ── placing a client on the map ───────────────────
+async function mapFindAddress(id) {
+  const c = _client(id), box = document.getElementById('mdFind');
+  if (!c.location) { toast('Type the client address first (Clients → Edit).', 'warning'); return; }
+  box.innerHTML = '<div class="md-sub">Searching…</div>';
+  let res = await apiGet('track', 'geocode', { q: c.location, cc: 'rw' });
+  if (res.ok && !(res.data || []).length) res = await apiGet('track', 'geocode', { q: c.location });
+  if (!res.ok) { box.innerHTML = `<div class="md-alert bad">${esc(res.error)}</div>`; return; }
+  _M.cands = res.data || [];
+  box.innerHTML = _M.cands.length ? `<div class="md-sub">Pick the right place</div>` + _M.cands.map((r, i) => `
+    <div class="md-dev" onclick="mapUseCandidate(${id},${i})"><b>${esc((r.display_name || '').split(',').slice(0, 2).join(','))}</b><span>${esc((r.display_name || '').split(',').slice(2, 4).join(','))}</span></div>`).join('')
+    : '<div class="md-alert info">No match for that address. Use "Click the map" to place it by hand.</div>';
+}
+async function mapUseCandidate(id, i) { const r = _M.cands[i]; if (r) await _saveClientPos(id, parseFloat(r.lat), parseFloat(r.lon)); }
+function mapPlaceStart(id) {
+  _M.placing = id;
+  const h = document.getElementById('mapHint'); h.textContent = 'Click the map where the business is. Press Esc to cancel.'; h.style.display = 'block';
+  document.getElementById('mainMap').classList.add('placing');
+}
+function _stopPlacing() {
+  _M.placing = null;
+  const h = document.getElementById('mapHint'); if (h) h.style.display = 'none';
+  const m = document.getElementById('mainMap'); if (m) m.classList.remove('placing');
+}
+async function _placeAt(lat, lng) { const id = _M.placing; _stopPlacing(); if (id) await _saveClientPos(id, lat, lng); }
+async function _saveClientPos(id, lat, lng) {
+  const r = await api('track', 'set_client_location', { id, lat, lng });
+  if (!r.ok) { toast(r.error || 'Could not save the position', 'error'); return; }
+  toast('Business placed on the map');
+  await _fetchOverview(); mapSelect('client', id);
+}
+function mapMovePin(id) {
+  const mk = _M.mk.client[id]; if (!mk) return;
+  mk.setDraggable(true);
+  const h = document.getElementById('mapHint'); h.textContent = 'Drag the pin to the right spot. It saves when you let go.'; h.style.display = 'block';
+  mk.once('dragend', async () => { h.style.display = 'none'; mk.setDraggable(false); const p = mk.getLngLat(); await _saveClientPos(id, p.lat, p.lng); });
 }
 
-function filterMapClients(q) { mapSearch(q); }
+// ── search for any place in the region ────────────
+async function mapSearchGo() {
+  const q = document.getElementById('mapSearch').value.trim(); if (q.length < 3) return;
+  let res = await apiGet('track', 'geocode', { q, cc: 'rw,ug,ke,tz,bi,cd,et,ss,so,dj,er' });
+  if (res.ok && !(res.data || []).length) res = await apiGet('track', 'geocode', { q });
+  if (!res.ok) { toast(res.error, 'error'); return; }
+  const rows = res.data || []; _M.placeRows = rows;
+  _M.places = rows.length ? `<div class="ml-head">Places</div>` + rows.map((r, i) => `
+    <div class="ml-item" onclick="mapGoPlace(${i})"><span class="ml-dot nopos"></span><div class="ml-main"><b>${esc((r.display_name || '').split(',')[0])}</b><span>${esc((r.display_name || '').split(',').slice(1, 4).join(','))}</span></div></div>`).join('') : '';
+  if (rows.length) mapGoPlace(0); else toast('No place found', 'info');
+  _renderList();
+}
+function mapGoPlace(i) {
+  const r = _M.placeRows[i]; if (!r) return;
+  const ll = [parseFloat(r.lon), parseFloat(r.lat)];
+  if (_M.placeMk) _M.placeMk.remove();
+  const el = document.createElement('div'); el.className = 'pin-place'; el.innerHTML = `<span>${esc((r.display_name || '').split(',')[0])}</span><i></i>`;
+  _M.placeMk = new maplibregl.Marker({ element: el, anchor: 'bottom', offset: [0, 7] }).setLngLat(ll).addTo(_M.map);
+  _M.map.flyTo({ center: ll, zoom: r.boundingbox && (r.type === 'country' || r.type === 'administrative') ? 8 : 16, speed: .9 });
+}
 
-// ── MAP TOOLS ─────────────────────────────────────
-function toggleMapFullscreen() {
-  const el = document.getElementById('mainMapContainer');
-  if (!document.fullscreenElement) {
-    el.requestFullscreen().then(() => {
-      setTimeout(() => _mainMap && _mainMap.invalidateSize(), 300);
-    }).catch(() => toast('Fullscreen not available', 'error'));
-  } else {
-    document.exitFullscreen();
+// ── view controls ─────────────────────────────────
+function mapRegion(key) {
+  const r = IMS_REGIONS[key]; if (!r) return;
+  document.getElementById('regionMenu').style.display = 'none';
+  document.querySelectorAll('#regionSeg button[data-r]').forEach(b => b.classList.toggle('on', b.dataset.r === key));
+  _M.map.fitBounds(r.bounds, { padding: key === 'east' ? 10 : 30, pitch: 0, bearing: 0, duration: 1400 });
+  _M.pitch3d = false; document.getElementById('tiltTxt').classList.remove('on');
+}
+function mapRegionMenu(e) {
+  e.stopPropagation();
+  const menu = document.getElementById('regionMenu');
+  if (menu.style.display === 'block') { menu.style.display = 'none'; return; }
+  menu.innerHTML = ['uganda', 'kenya', 'tanzania', 'burundi', 'drc'].map(k => `<button onclick="mapRegion('${k}')">${IMS_REGIONS[k].label}</button>`).join('');
+  menu.style.display = 'block';
+  setTimeout(() => document.addEventListener('click', () => menu.style.display = 'none', { once: true }), 0);
+}
+function mapFitAll() {
+  const pts = [];
+  _M.data.clients.forEach(c => { if (c.lat !== null && _M.on.clients) pts.push([c.lng, c.lat]); });
+  _M.data.devices.forEach(d => { if (d.lat !== null && _M.on.devices) pts.push([d.lng, d.lat]); });
+  if (!pts.length) { mapRegion('rwanda'); toast('Nothing is placed on the map yet', 'info'); return; }
+  _M.map.fitBounds(pts.reduce((b, p) => b.extend(p), new maplibregl.LngLatBounds(pts[0], pts[0])), { padding: 110, maxZoom: 16, duration: 1200 });
+}
+function mapZoom(d) { _M.map.easeTo({ zoom: _M.map.getZoom() + d, duration: 300 }); }
+function mapTilt() {
+  _M.pitch3d = !_M.pitch3d;
+  document.getElementById('tiltTxt').classList.toggle('on', _M.pitch3d);
+  _M.map.easeTo({ pitch: _M.pitch3d ? 60 : 0, bearing: _M.pitch3d ? -20 : 0, zoom: _M.pitch3d ? Math.max(_M.map.getZoom(), 15) : _M.map.getZoom(), duration: 900 });
+}
+function mapLocateMe() {
+  if (!navigator.geolocation) { toast('This browser cannot give your location', 'warning'); return; }
+  navigator.geolocation.getCurrentPosition(p => {
+    const ll = [p.coords.longitude, p.coords.latitude];
+    if (_M.me) _M.me.remove();
+    const el = document.createElement('div'); el.className = 'pin-me';
+    _M.me = new maplibregl.Marker({ element: el }).setLngLat(ll).addTo(_M.map);
+    _M.map.flyTo({ center: ll, zoom: 15 });
+  }, () => toast('Allow location access in your browser to use this', 'warning'), { enableHighAccuracy: true, timeout: 8000 });
+}
+function mapFullscreen() {
+  const el = document.getElementById('mapShell');
+  if (document.fullscreenElement) document.exitFullscreen(); else if (el.requestFullscreen) el.requestFullscreen();
+  setTimeout(() => _M.map && _M.map.resize(), 300);
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && _M.placing) _stopPlacing(); });
+
+// ── dashboard mini map ────────────────────────────
+function initDashMap(clients, devices) {
+  const el = document.getElementById('dashMapContainer');
+  if (!el || typeof maplibregl === 'undefined') return;
+  if (_dashMap) { _dashMap.remove(); _dashMap = null; }
+  const feats = [];
+  (clients || []).forEach(c => { if (c.lat !== null && c.lat !== undefined) feats.push({ type: 'Feature', properties: { k: 'c', s: c.status }, geometry: { type: 'Point', coordinates: [+c.lng, +c.lat] } }); });
+  (devices || []).forEach(d => { if (d.last_lat !== null && d.last_lat !== undefined) feats.push({ type: 'Feature', properties: { k: 'd' }, geometry: { type: 'Point', coordinates: [+d.last_lng, +d.last_lat] } }); });
+  _dashMap = new maplibregl.Map({ container: el, style: imsDarkStyle(), interactive: false, attributionControl: false, bounds: IMS_REGIONS.rwanda.bounds, fitBoundsOptions: { padding: 8 } });
+  _dashMap.on('load', () => {
+    imsAddFocusCountry(_dashMap, 'Rwanda');
+    _dashMap.addSource('pts', { type: 'geojson', data: { type: 'FeatureCollection', features: feats } });
+    _dashMap.addLayer({ id: 'p-glow', type: 'circle', source: 'pts', paint: { 'circle-radius': ['case', ['==', ['get', 'k'], 'c'], 13, 8], 'circle-blur': 1, 'circle-opacity': .5, 'circle-color': ['case', ['==', ['get', 'k'], 'd'], '#22d3ee', ['match', ['get', 's'], 'active', '#3b82f6', 'trial', '#8b5cf6', '#ef4444']] } });
+    _dashMap.addLayer({ id: 'p-dot', type: 'circle', source: 'pts', paint: { 'circle-radius': ['case', ['==', ['get', 'k'], 'c'], 6, 3.5], 'circle-stroke-color': '#040816', 'circle-stroke-width': 1.5, 'circle-color': ['case', ['==', ['get', 'k'], 'd'], '#22d3ee', ['match', ['get', 's'], 'active', '#3b82f6', 'trial', '#8b5cf6', '#ef4444']] } });
+    if (feats.length > 1) {
+      const b = feats.reduce((bb, f) => bb.extend(f.geometry.coordinates), new maplibregl.LngLatBounds(feats[0].geometry.coordinates, feats[0].geometry.coordinates));
+      _dashMap.fitBounds(b, { padding: 26, maxZoom: 11, duration: 0 });
+    }
+  });
+}
+
+// ═══ Client form: where is the business? ═══
+// Used by Add client / Edit client. Type the address, press Find, then drag the pin to the exact door.
+const _GF = {};   // per-form state: { map, marker }
+function imsGeoFields(p, c) {
+  const lat = c && c.lat !== null && c.lat !== undefined && c.lat !== '' ? Number(c.lat) : '';
+  const lng = c && c.lng !== null && c.lng !== undefined && c.lng !== '' ? Number(c.lng) : '';
+  const consent = c && Number(c.tracking_consent) === 1;
+  const away = c && c.away_km ? Number(c.away_km) : 2;
+  return `
+  <div class="geo-box">
+    <div class="geo-head"><b>Where is the business?</b>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="imsGeoFind('${p}')">Find the address on the map</button></div>
+    <div class="geo-map" id="${p}GeoMap"></div>
+    <div class="geo-note" id="${p}GeoNote">Click the map or drag the pin to the exact spot. Devices are measured against this position.</div>
+    <div class="form-row cols-2" style="margin-top:8px">
+      <div class="form-group" style="margin:0"><label class="form-label">Latitude</label><input class="form-input" id="${p}Lat" value="${lat}" placeholder="-1.9441" inputmode="decimal" oninput="imsGeoTyped('${p}')"/></div>
+      <div class="form-group" style="margin:0"><label class="form-label">Longitude</label><input class="form-input" id="${p}Lng" value="${lng}" placeholder="30.0619" inputmode="decimal" oninput="imsGeoTyped('${p}')"/></div>
+    </div>
+    <label class="geo-check"><input type="checkbox" id="${p}Consent" ${consent ? 'checked' : ''}/>
+      <span><b>Devices share their location with us</b><br>Turn this on only after the client has agreed. It lets us show where their devices are and help find one that is lost.</span></label>
+    <div class="form-group" style="margin:8px 0 0"><label class="form-label">Warn me when a device is more than this far from the business (km)</label>
+      <input type="number" class="form-input" id="${p}Away" value="${away}" min="1" max="500" style="max-width:120px"/></div>
+  </div>`;
+}
+function imsGeoValues(p) {
+  const lat = document.getElementById(p + 'Lat').value.trim(), lng = document.getElementById(p + 'Lng').value.trim();
+  return { lat, lng, geoSource: 'manual', trackingConsent: document.getElementById(p + 'Consent').checked, awayKm: parseInt(document.getElementById(p + 'Away').value, 10) || 2 };
+}
+function imsGeoInit(p, c, addressInputId) {
+  setTimeout(() => {
+    const el = document.getElementById(p + 'GeoMap');
+    if (!el || typeof L === 'undefined') return;
+    const st = _GF[p] = { addr: addressInputId, map: null, marker: null };
+    const lat = parseFloat(document.getElementById(p + 'Lat').value), lng = parseFloat(document.getElementById(p + 'Lng').value);
+    const has = !isNaN(lat) && !isNaN(lng);
+    st.map = L.map(el, { zoomControl: true, attributionControl: false }).setView(has ? [lat, lng] : RWANDA_CENTER, has ? 16 : 8);
+    L.tileLayer(MAP_TILES.streets.url, { maxZoom: 19 }).addTo(st.map);
+    st.map.on('click', e => imsGeoSet(p, e.latlng.lat, e.latlng.lng, true));
+    if (has) imsGeoSet(p, lat, lng, false);
+    setTimeout(() => st.map.invalidateSize(), 250);
+  }, 120);
+}
+function imsGeoSet(p, lat, lng, fromUser) {
+  const st = _GF[p]; if (!st || !st.map) return;
+  document.getElementById(p + 'Lat').value = (+lat).toFixed(6);
+  document.getElementById(p + 'Lng').value = (+lng).toFixed(6);
+  if (!st.marker) {
+    st.marker = L.marker([lat, lng], { draggable: true }).addTo(st.map);
+    st.marker.on('dragend', e => imsGeoSet(p, e.target.getLatLng().lat, e.target.getLatLng().lng, true));
+  } else st.marker.setLatLng([lat, lng]);
+  if (fromUser) document.getElementById(p + 'GeoNote').textContent = 'Position saved when you press Save. Drag the pin to adjust it.';
+}
+function imsGeoTyped(p) {
+  const lat = parseFloat(document.getElementById(p + 'Lat').value), lng = parseFloat(document.getElementById(p + 'Lng').value);
+  const st = _GF[p];
+  if (st && st.map && !isNaN(lat) && !isNaN(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
+    if (!st.marker) imsGeoSet(p, lat, lng, false); else st.marker.setLatLng([lat, lng]);
+    st.map.setView([lat, lng], Math.max(st.map.getZoom(), 15));
   }
 }
-
-function shareMapLink() {
-  const center = _mainMap.getCenter();
-  const zoom   = _mainMap.getZoom();
-  const url    = `https://www.openstreetmap.org/#map=${zoom}/${center.lat.toFixed(4)}/${center.lng.toFixed(4)}`;
-  navigator.clipboard.writeText(url).then(() => toast('Map link copied ✅')).catch(() => prompt('Map link:', url));
+async function imsGeoFind(p) {
+  const st = _GF[p]; const q = (document.getElementById(st.addr).value || '').trim();
+  const note = document.getElementById(p + 'GeoNote');
+  if (q.length < 3) { note.textContent = 'Type the address in the Location box first.'; return; }
+  note.textContent = 'Searching…';
+  let res = await apiGet('track', 'geocode', { q, cc: 'rw' });
+  if (res.ok && !(res.data || []).length) res = await apiGet('track', 'geocode', { q });
+  if (!res.ok) { note.textContent = res.error; return; }
+  const r = (res.data || [])[0];
+  if (!r) { note.textContent = 'No match for that address. Click the map to place the pin by hand.'; return; }
+  imsGeoSet(p, parseFloat(r.lat), parseFloat(r.lon), true);
+  st.map.setView([parseFloat(r.lat), parseFloat(r.lon)], 16);
+  note.textContent = 'Found: ' + (r.display_name || '').split(',').slice(0, 3).join(',') + '. Drag the pin if it is not exactly right.';
 }
-
-function printMap() {
-  window.print();
-}
-
-// ── DASHBOARD MINI MAP ────────────────────────────
-function initDashMap(clients) {
-  const container = document.getElementById('dashMapContainer');
-  if (!container || _dashMap) return;
-
-  _dashMap = L.map('dashMapContainer', {
-    zoomControl: false,
-    attributionControl: false,
-    dragging: true,
-    scrollWheelZoom: false,
-    doubleClickZoom: false,
-  }).setView(RWANDA_CENTER, 7);
-
-  L.tileLayer(TILES.dark.url, { subdomains: 'abcd', maxZoom: 19 }).addTo(_dashMap);
-
-  clients.forEach((client, i) => {
-    const loc   = RWANDA_LOCATIONS[i % RWANDA_LOCATIONS.length];
-    const lat   = loc.lat + (Math.random() - 0.5) * 0.05;
-    const lng   = loc.lng + (Math.random() - 0.5) * 0.05;
-    const color = STATUS_COLORS[client.status] || '#7B8CAA';
-
-    const icon = L.divIcon({
-      className: '',
-      html: `<div style="position:relative;width:20px;height:20px;display:flex;align-items:center;justify-content:center">
-        <div style="position:absolute;width:16px;height:16px;border-radius:50%;background:${color};opacity:0.2;animation:sidebarDot 2s infinite ${i*0.25}s"></div>
-        <div style="width:7px;height:7px;border-radius:50%;background:${color};box-shadow:0 0 8px ${color}"></div>
-      </div>`,
-      iconSize: [20, 20],
-      iconAnchor: [10, 10],
-    });
-
-    L.marker([lat, lng], { icon }).addTo(_dashMap)
-     .bindTooltip(esc(client.businessName), { className: 'ims-tooltip', offset: [0, -5] });
-  });
-
-  L.polyline(
-    [[-2.84,28.86],[-2.84,30.90],[-1.05,30.90],[-1.05,28.86],[-2.84,28.86]],
-    { color: 'rgba(77,158,255,0.2)', weight: 1.5, dashArray: '5,5' }
-  ).addTo(_dashMap);
-}
-
-// Sidebar dot animation
-const _mapCss = document.createElement('style');
-_mapCss.textContent = `
-  @keyframes sidebarDot{0%,100%{transform:scale(1);opacity:0.3}50%{transform:scale(1.8);opacity:0.05}}
-  @keyframes pulseLive{0%,100%{opacity:1}50%{opacity:.4}}
-  @keyframes pinRing1{0%{transform:translate(-50%,-50%) scale(0.3);opacity:0.6}100%{transform:translate(-50%,-50%) scale(1.8);opacity:0}}
-  @keyframes pinRing2{0%{transform:translate(-50%,-50%) scale(0.4);opacity:0.5}100%{transform:translate(-50%,-50%) scale(1.5);opacity:0}}
-`;
-document.head.appendChild(_mapCss);
