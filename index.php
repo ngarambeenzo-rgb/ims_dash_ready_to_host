@@ -303,7 +303,7 @@ require_once __DIR__ . '/config/db.php';
 <script src="assets/js/utils.js?v=9"></script>
 <script src="assets/js/shared_helpers.js?v=7"></script>
 <script src="assets/js/api.js?v=9"></script>
-<script src="assets/js/auth.js?v=9"></script>
+<script src="assets/js/auth.js?v=10"></script>
 <script src="assets/js/navigation.js?v=10"></script>
 <script src="assets/js/dashboard.js?v=10"></script>
 <script src="assets/js/clients.js?v=9"></script>

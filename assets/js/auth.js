@@ -13,8 +13,19 @@ async function doLogin() {
 
   if (!u || !p) { errEl.style.display = 'flex'; return; }
 
+  const msgEl = errEl.querySelector('span');
+  if (msgEl && !msgEl.dataset.def) msgEl.dataset.def = msgEl.textContent;
   const res = await api('auth', 'login', { username: u, password: p });
-  if (!res.ok) { errEl.style.display = 'flex'; return; }
+  if (!res.ok) {
+    // Only say "wrong password" when the server really rejected it; otherwise show the real problem.
+    if (msgEl) {
+      if (res.error === 'Invalid credentials') msgEl.textContent = msgEl.dataset.def;
+      else if (res.error === 'Network error') msgEl.textContent = 'Could not reach the server (slow or offline). Wait a moment and try again.';
+      else msgEl.textContent = (res.error || 'Server problem') + ' — this is not a password problem. Try again.';
+    }
+    errEl.style.display = 'flex';
+    return;
+  }
 
   session = { adminId: res.admin.id, username: res.admin.username, fullName: res.admin.fullName };
 
